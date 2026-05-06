@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Sat-Track Icon</title>
+  <desc id="desc">A stylized satellite orbiting Earth.</desc>
+  <defs>
+    <linearGradient id="space" x1="18" y1="14" x2="108" y2="116" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="earth" x1="44" y1="42" x2="88" y2="92" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="orbit" x1="15" y1="78" x2="114" y2="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22c55e" stop-opacity=".2"/>
+      <stop offset=".55" stop-color="#67e8f9"/>
+      <stop offset="1" stop-color="#a78bfa" stop-opacity=".35"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#space)"/>
+  <circle cx="64" cy="68" r="28" fill="url(#earth)"/>
+  <path d="M45 51c7 4 15 5 25 3 7-1 13-1 19 2" fill="none" stroke="#bae6fd" stroke-width="5" stroke-linecap="round" opacity=".85"/>
+  <path d="M39 72c8 6 18 8 31 5 9-2 17-1 25 4" fill="none" stroke="#0f766e" stroke-width="5" stroke-linecap="round" opacity=".55"/>
+  <path d="M18 77c21 18 72 10 92-18" fill="none" stroke="url(#orbit)" stroke-width="5" stroke-linecap="round"/>
+  <path d="M103 42l-12 8 9 14 12-8-9-14Z" fill="#e5e7eb"/>
+  <path d="M89 53l-8 5 5 8 8-5-5-8Z" fill="#38bdf8"/>
+  <path d="M106 38l12-7" stroke="#e5e7eb" stroke-width="4" stroke-linecap="round"/>
+  <path d="M113 36l5 8" stroke="#94a3b8" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="30" cy="33" r="2" fill="#e0f2fe"/>
+  <circle cx="101" cy="92" r="2" fill="#c4b5fd"/>
+  <circle cx="25" cy="99" r="1.6" fill="#e0f2fe"/>
+</svg>

@@ -1,0 +1,2503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Starlink Growth Tracker - v2 (Fixed)</title>
+    <style>
+        :root {
+            --ui-bg: rgba(10, 15, 25, 0.92);
+            --ui-border: rgba(255, 255, 255, 0.1);
+            --ui-text: rgba(255, 255, 255, 0.92);
+            --ui-subtext: rgba(255, 255, 255, 0.65);
+            --accent: #33aaff;
+            --good: #4caf50;
+            --warn: #ff9800;
+            --bad: #f44336;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #000;
+            touch-action: none;
+        }
+
+        canvas { display: block; }
+
+        #ui-container {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 340px;
+            max-height: 85vh;
+            background: var(--ui-bg);
+            border: 1px solid var(--ui-border);
+            border-radius: 16px;
+            padding: 16px;
+            color: var(--ui-text);
+            z-index: 10;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            overflow-y: auto;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        #ui-container.hidden {
+            transform: translateX(-110%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #ui-toggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: var(--ui-bg);
+            border: 1px solid var(--ui-border);
+            color: var(--ui-text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 11;
+            cursor: pointer;
+            font-size: 20px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            transition: transform 0.2s ease;
+        }
+
+        #ui-toggle:hover { transform: scale(1.05); }
+
+        h1 {
+            font-size: 18px;
+            margin: 0 0 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-ok { background: var(--good); }
+        .status-warn { background: var(--warn); }
+        .status-err { background: var(--bad); }
+
+        h2 {
+            font-size: 14px;
+            margin: 16px 0 8px;
+            font-weight: 600;
+            color: var(--ui-subtext);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--ui-subtext);
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .control-group {
+            margin-top: 12px;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            color: var(--ui-subtext);
+            margin-bottom: 6px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent);
+        }
+
+        .range-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--ui-subtext);
+            margin-top: 4px;
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 10px;
+            padding: 8px 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .toggle-row span {
+            font-size: 12px;
+            color: var(--ui-text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        input[type="checkbox"] {
+            transform: scale(1.1);
+            accent-color: var(--accent);
+        }
+
+        .source-badge {
+            font-size: 8px;
+            padding: 2px 5px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .source-badge.live { background: var(--good); color: #000; }
+        .source-badge.sim { background: var(--warn); color: #000; }
+        .source-badge.cached { background: var(--accent); color: #000; }
+
+        #tooltip {
+            position: fixed;
+            pointer-events: none;
+            padding: 10px 12px;
+            background: rgba(10, 15, 25, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            color: white;
+            font-size: 12px;
+            display: none;
+            z-index: 20;
+            min-width: 180px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .tooltip-header {
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--accent);
+        }
+
+        .tooltip-row {
+            margin: 2px 0;
+        }
+
+        #search-box {
+            width: calc(100% - 22px);
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--ui-text);
+            font-size: 12px;
+            outline: none;
+        }
+
+        #search-results {
+            margin-top: 8px;
+            max-height: 160px;
+            overflow-y: auto;
+        }
+
+        .search-item {
+            padding: 8px 10px;
+            border-radius: 10px;
+            margin-bottom: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .search-item:hover {
+            background: rgba(51, 170, 255, 0.15);
+            border-color: rgba(51, 170, 255, 0.2);
+        }
+
+        #loader-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            color: white;
+            flex-direction: column;
+            gap: 12px;
+            font-size: 14px;
+            transition: opacity 0.5s ease;
+        }
+
+        #loader-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .progress-bar {
+            width: 280px;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 999px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--accent);
+            transition: width 0.3s ease;
+        }
+
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            padding: 10px 12px;
+            background: rgba(10, 15, 25, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+            z-index: 5;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .legend-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            vertical-align: middle;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        #offline-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--warn);
+            color: #000;
+            text-align: center;
+            padding: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            z-index: 200;
+            display: none;
+        }
+
+        /* Error toast notification */
+        #error-toast {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(244, 67, 54, 0.95);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            z-index: 300;
+            display: none;
+            max-width: 400px;
+            text-align: center;
+            backdrop-filter: blur(8px);
+        }
+
+        #error-toast.visible {
+            display: block;
+            animation: fadeInOut 4s ease forwards;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+            10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            80% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        @media (max-width: 768px) {
+            #ui-container {
+                width: calc(100% - 40px);
+                max-height: 70vh;
+                top: 70px;
+            }
+            #controls {
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="offline-banner">⚠ Offline - Using cached/simulated data</div>
+
+<div id="loader-overlay">
+    <div id="loader-text">Loading orbital data...</div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+</div>
+
+<div id="ui-toggle">✕</div>
+
+<div id="ui-container">
+    <h1>
+        <span class="status-indicator status-warn" id="status-dot"></span>
+        Starlink Growth Tracker
+    </h1>
+
+    <div style="font-size:12px; color: var(--ui-subtext); margin-bottom: 10px;">
+        <span id="status-text">Initialising...</span>
+    </div>
+
+    <h2>Live Stats</h2>
+    <div class="stat-grid">
+        <div class="stat-item">
+            <div class="stat-label">UTC Time</div>
+            <div class="stat-value" id="utcTime">--:--:--</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Active Objects</div>
+            <div class="stat-value" id="satCount">0</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Sunlit</div>
+            <div class="stat-value" id="litCount">0</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Eclipsed</div>
+            <div class="stat-value" id="darkCount">0</div>
+        </div>
+    </div>
+
+    <h2>Simulation</h2>
+    <div class="control-group">
+        <label for="growthSlider">Constellation Density</label>
+        <input type="range" id="growthSlider" min="1" max="100" value="100">
+        <div class="range-info">
+            <span>Low</span><span>Full</span>
+        </div>
+    </div>
+
+    <div class="control-group">
+        <label for="timeSpeed">Time Speed (x<span id="speedDisplay">1</span>)</label>
+        <input type="range" id="timeSpeed" min="1" max="200" value="1">
+        <div class="range-info">
+            <span>Real</span><span>Fast</span>
+        </div>
+    </div>
+
+    <h2>Search</h2>
+    <div class="control-group">
+        <input type="text" id="search-box" placeholder="Search Satellite ID...">
+        <div id="search-results"></div>
+    </div>
+
+    <h2>Layers</h2>
+    <div class="toggle-row">
+        <span>
+            <span class="legend-dot" style="background:#ffffff"></span>
+            Starlink
+            <span class="source-badge sim" id="badge-starlink">--</span>
+        </span>
+        <input type="checkbox" id="layer-starlink" checked>
+    </div>
+    <div class="toggle-row">
+        <span>
+            <span class="legend-dot" style="background:#ffd166"></span>
+            ISS
+            <span class="source-badge sim" id="badge-iss">--</span>
+        </span>
+        <input type="checkbox" id="layer-iss" checked>
+    </div>
+    <div class="toggle-row">
+        <span>
+            <span class="legend-dot" style="background:#06d6a0"></span>
+            GPS
+            <span class="source-badge sim" id="badge-gps">--</span>
+        </span>
+        <input type="checkbox" id="layer-gps" checked>
+    </div>
+    <div class="toggle-row">
+        <span>
+            <span class="legend-dot" style="background:#8d99ae"></span>
+            Galileo
+            <span class="source-badge sim" id="badge-galileo">--</span>
+        </span>
+        <input type="checkbox" id="layer-galileo" checked>
+    </div>
+    <div class="toggle-row">
+        <span>
+            <span class="legend-dot" style="background:#ef476f"></span>
+            OneWeb
+            <span class="source-badge sim" id="badge-oneweb">--</span>
+        </span>
+        <input type="checkbox" id="layer-oneweb" checked>
+    </div>
+
+    <div class="toggle-row">
+        <span>Show Orbit Trajectory</span>
+        <input type="checkbox" id="toggle-orbit">
+    </div>
+</div>
+
+<div id="tooltip">
+    <div class="tooltip-header" id="tooltip-name">--</div>
+    <div class="tooltip-row" id="tooltip-layer">Layer: --</div>
+    <div class="tooltip-row" id="tooltip-id">ID: --</div>
+    <div class="tooltip-row" id="tooltip-alt">Alt: --</div>
+    <div class="tooltip-row" id="tooltip-vel">Vel: --</div>
+    <div class="tooltip-row" id="tooltip-light">Light: --</div>
+    <div class="tooltip-row" id="tooltip-locked" style="color:#0f0; font-size:0.7em; margin-top:4px; display:none;">TARGET LOCKED</div>
+</div>
+
+<div id="controls">
+    Drag: Rotate | Scroll/Pinch: Zoom | Click: Select | H: Toggle UI
+</div>
+
+<!-- Error toast for user-facing error messages -->
+<div id="error-toast"></div>
+
+<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://unpkg.com/satellite.js@4.0.0/dist/satellite.min.js"></script>
+
+<script>
+    /* ============================================================================
+     * CONSTANTS SECTION
+     * All magic numbers are documented here for easy maintenance and understanding
+     * ============================================================================ */
+    
+    const CONSTANTS = {
+        // === Earth & Space Physics ===
+        EARTH_RADIUS_KM: 6371,                    // Mean radius of Earth in kilometers
+        EARTH_RADIUS_ATMO_KM: 6421,               // Earth radius including atmosphere (~50km above surface)
+        SUN_RADIUS_KM: 696340,                    // Radius of the Sun in kilometers
+        SUN_DISTANCE_KM: 149597870,               // Average Earth-Sun distance (1 AU) in kilometers
+        GRAVITATIONAL_PARAM: 398600.4418,         // Earth's gravitational parameter (GM) in km³/s²
+        J2_PERTURBATION: 1.08263e-3,              // J2 zonal harmonic coefficient for orbital perturbations
+        
+        // === Rendering Configuration ===
+        RENDER_SCALE: 0.001,                      // Conversion factor: km to Three.js units (1000km = 1 unit)
+        ATMOSPHERE_SCALE: 1.025,                  // Scale factor for atmospheric shell (2.5% larger than Earth)
+        POINT_SIZE_DEFAULT: 2.0,                  // Default satellite point size in pixels
+        ISS_POINT_SIZE: 8.0,                      // ISS sprite size (larger for visibility)
+        ISS_ICON_RESOLUTION: 64,                  // Canvas resolution for ISS icon texture
+        STAR_COUNT: 2000,                         // Number of background stars to render
+        STAR_SPREAD: 1500,                        // Spread radius for star field
+        
+        // === Animation & Physics Timing ===
+        PHYSICS_HZ: 30,                           // Physics update frequency in Hz
+        RAYCAST_HZ: 20,                           // Raycast (hover detection) frequency in Hz
+        ORBIT_POINTS: 300,                        // Number of points to draw for orbit path visualization
+        ORBIT_DURATION_MINS: 95,                  // Duration of orbit path to show (roughly one orbit)
+        
+        // === Lighting & Shadow Calculation ===
+        UMBRA_THRESHOLD: 0.98,                    // Shadow factor threshold for full umbra (0.98 = 98% shadowed)
+        PENUMBRA_MIN_THRESHOLD: 0.02,             // Minimum shadow factor for penumbra detection
+        SHADOW_COLOR_EXPONENT: 1.25,              // Exponent for shadow color blending curve (higher = sharper transition)
+        TERMINATOR_BLEND_START: -0.10,            // Sun dot product where day/night transition starts
+        TERMINATOR_BLEND_END: 0.10,               // Sun dot product where day/night transition ends
+        ATMOSPHERE_SCATTER_START: 0.20,           // Sun angle where atmospheric scattering begins
+        
+        // === Network & Caching ===
+        CACHE_TTL_MS: 3600000,                    // TLE cache time-to-live: 1 hour (3600000ms)
+        FETCH_TIMEOUT_DIRECT: 10000,              // Timeout for direct CelesTrak fetch: 10 seconds
+        FETCH_TIMEOUT_PROXY: 10000,               // Timeout for proxy fetch attempts: 10 seconds
+        FETCH_TIMEOUT_TIME_API: 5000,             // Timeout for time sync API: 5 seconds
+        FETCH_TIMEOUT_MAX_TOTAL: 30000,           // Hard cap per layer so no layer blocks indefinitely
+        
+        // === Camera & Controls ===
+        CAMERA_FOV: 45,                           // Camera field of view in degrees
+        CAMERA_NEAR: 0.1,                         // Camera near clipping plane
+        CAMERA_FAR: 2000,                         // Camera far clipping plane
+        CAMERA_INITIAL_DISTANCE: 25,              // Initial camera distance from Earth center
+        CAMERA_MIN_DISTANCE: 8,                   // Minimum zoom distance
+        CAMERA_MAX_DISTANCE: 200,                 // Maximum zoom distance
+        AUTO_ROTATE_SPEED: 0.5,                   // Auto-rotation speed when idle
+        DAMPING_FACTOR: 0.05,                     // Camera movement damping
+        
+        // === Raycasting ===
+        RAYCAST_THRESHOLD: 0.9,                   // Distance threshold for satellite selection (Three.js units)
+        
+        // === Search & UI ===
+        SEARCH_DEBOUNCE_MS: 150,                  // Debounce delay for search input
+        SEARCH_MIN_CHARS: 2,                      // Minimum characters before search triggers
+        SEARCH_MAX_RESULTS: 12,                   // Maximum search results to display
+        
+        // === Error Handling ===
+        ERROR_TOAST_DURATION_MS: 4000,            // How long error messages display
+        
+        // === Eclipse Detection Thresholds (for satellite colors) ===
+        DARK_COLOR: { r: 0.12, g: 0.14, b: 0.22 } // RGB color for satellites in shadow
+    };
+
+    /* ============================================================================
+     * UTILITY FUNCTIONS
+     * Security and helper functions used throughout the application
+     * ============================================================================ */
+
+    /**
+     * Sanitizes a string to prevent XSS attacks by escaping HTML special characters.
+     * Used for all satellite names before rendering to the DOM.
+     * @param {string} str - The string to sanitize
+     * @returns {string} The sanitized string safe for HTML insertion
+     */
+    function sanitizeHTML(str) {
+        if (typeof str !== 'string') return '';
+        const escapeMap = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;',
+            '/': '&#x2F;',
+            '`': '&#x60;',
+            '=': '&#x3D;'
+        };
+        return str.replace(/[&<>"'`=/]/g, char => escapeMap[char]);
+    }
+
+    /**
+     * Displays a user-facing error message as a toast notification.
+     * @param {string} message - The error message to display
+     */
+    function showErrorToast(message) {
+        const toast = document.getElementById('error-toast');
+        if (!toast) return;
+        
+        toast.textContent = message;
+        toast.classList.remove('visible');
+        
+        // Force reflow to restart animation
+        void toast.offsetWidth;
+        toast.classList.add('visible');
+        
+        setTimeout(() => {
+            toast.classList.remove('visible');
+        }, CONSTANTS.ERROR_TOAST_DURATION_MS);
+    }
+
+    /**
+     * Logs an error to console and optionally shows user-facing message.
+     * @param {string} context - Where the error occurred
+     * @param {Error} error - The error object
+     * @param {boolean} showToUser - Whether to show toast notification
+     */
+    function handleError(context, error, showToUser = false) {
+        console.error(`[${context}]`, error);
+        if (showToUser) {
+            showErrorToast(`Error: ${context} - ${error.message || 'Unknown error'}`);
+        }
+    }
+
+    /* ============================================================================
+     * ISS ICON GENERATOR
+     * Creates a custom space station sprite for enhanced ISS visibility
+     * ============================================================================ */
+
+    /**
+     * Creates a canvas-based space station icon for the ISS.
+     * The icon features solar panels and a central module, making it
+     * easily distinguishable from regular satellite points.
+     * @returns {HTMLCanvasElement} Canvas element containing the ISS icon
+     */
+    function createISSIcon() {
+        const size = CONSTANTS.ISS_ICON_RESOLUTION;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        
+        const cx = size / 2;
+        const cy = size / 2;
+        
+        // Clear with transparency
+        ctx.clearRect(0, 0, size, size);
+        
+        // Add glow effect
+        const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, size / 2);
+        gradient.addColorStop(0, 'rgba(255, 209, 102, 0.8)');
+        gradient.addColorStop(0.3, 'rgba(255, 209, 102, 0.4)');
+        gradient.addColorStop(0.7, 'rgba(255, 209, 102, 0.1)');
+        gradient.addColorStop(1, 'rgba(255, 209, 102, 0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, size, size);
+        
+        // Draw solar panels (horizontal)
+        ctx.fillStyle = '#4a90d9';
+        ctx.strokeStyle = '#6ab0ff';
+        ctx.lineWidth = 1;
+        
+        // Left solar panel
+        ctx.fillRect(cx - 28, cy - 4, 18, 8);
+        ctx.strokeRect(cx - 28, cy - 4, 18, 8);
+        
+        // Right solar panel
+        ctx.fillRect(cx + 10, cy - 4, 18, 8);
+        ctx.strokeRect(cx + 10, cy - 4, 18, 8);
+        
+        // Draw solar panel grid lines
+        ctx.strokeStyle = '#3a7ab9';
+        ctx.lineWidth = 0.5;
+        for (let i = 1; i < 4; i++) {
+            // Left panel
+            ctx.beginPath();
+            ctx.moveTo(cx - 28 + (i * 4.5), cy - 4);
+            ctx.lineTo(cx - 28 + (i * 4.5), cy + 4);
+            ctx.stroke();
+            // Right panel
+            ctx.beginPath();
+            ctx.moveTo(cx + 10 + (i * 4.5), cy - 4);
+            ctx.lineTo(cx + 10 + (i * 4.5), cy + 4);
+            ctx.stroke();
+        }
+        
+        // Draw vertical solar panels (smaller)
+        ctx.fillStyle = '#4a90d9';
+        ctx.strokeStyle = '#6ab0ff';
+        ctx.lineWidth = 1;
+        
+        // Top panel
+        ctx.fillRect(cx - 3, cy - 20, 6, 12);
+        ctx.strokeRect(cx - 3, cy - 20, 6, 12);
+        
+        // Bottom panel
+        ctx.fillRect(cx - 3, cy + 8, 6, 12);
+        ctx.strokeRect(cx - 3, cy + 8, 6, 12);
+        
+        // Draw central module (main body)
+        ctx.fillStyle = '#ffd166';
+        ctx.strokeStyle = '#ffec99';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Draw truss structure
+        ctx.strokeStyle = '#cccccc';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx - 10, cy);
+        ctx.lineTo(cx + 10, cy);
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 8);
+        ctx.lineTo(cx, cy + 8);
+        ctx.stroke();
+        
+        return canvas;
+    }
+
+    /* ============================================================================
+     * SIMULATED ORBIT CLASS
+     * Provides orbital mechanics for simulated satellites when live TLE unavailable
+     * ============================================================================ */
+
+    /**
+     * Represents a simulated satellite orbit using Keplerian elements.
+     * Used as a fallback when live TLE data is unavailable.
+     */
+    class SimulatedOrbit {
+        /**
+         * Creates a new simulated orbit.
+         * @param {number} alt - Orbital altitude above Earth's surface in km
+         * @param {number} inc - Orbital inclination in degrees
+         * @param {number} raan - Right Ascension of Ascending Node in degrees
+         * @param {number} anomaly - Initial true anomaly in degrees
+         */
+        constructor(alt, inc, raan, anomaly) {
+            this.isSimulated = true;
+            this.alt = alt;
+            this.inc = inc * (Math.PI / 180);
+            this.raan0 = raan * (Math.PI / 180);
+            this.anomaly0 = anomaly * (Math.PI / 180);
+            
+            // Calculate orbital period using Kepler's third law
+            const r = CONSTANTS.EARTH_RADIUS_KM + alt;
+            this.meanMotion = Math.sqrt(CONSTANTS.GRAVITATIONAL_PARAM / Math.pow(r, 3));
+            
+            // Calculate nodal precession due to Earth's oblateness (J2 effect)
+            const a = r;
+            this.raanRate = -1.5 * this.meanMotion * CONSTANTS.J2_PERTURBATION * 
+                           Math.pow(CONSTANTS.EARTH_RADIUS_KM / a, 2) * Math.cos(this.inc);
+            
+            this.epoch = Date.now() / 1000;
+        }
+
+        /**
+         * Calculates satellite position at a given time.
+         * @param {Date} date - The time to calculate position for
+         * @returns {{x: number, y: number, z: number}} Position in Three.js coordinates
+         */
+        getPos(date) {
+            const t = date.getTime() / 1000 - this.epoch;
+            const curAnomaly = this.anomaly0 + (this.meanMotion * t);
+            const curRaan = this.raan0 + (this.raanRate * t);
+            const r = (CONSTANTS.EARTH_RADIUS_KM + this.alt) * CONSTANTS.RENDER_SCALE;
+
+            // Calculate position in orbital plane
+            const x = r * Math.cos(curAnomaly);
+            const y = r * Math.sin(curAnomaly);
+
+            // Rotate by inclination
+            const x1 = x;
+            const y1 = y * Math.cos(this.inc);
+            const z1 = y * Math.sin(this.inc);
+
+            // Rotate by RAAN and convert to Three.js coordinate system
+            const xFinal = x1 * Math.cos(curRaan) - y1 * Math.sin(curRaan);
+            const yFinal = x1 * Math.sin(curRaan) + y1 * Math.cos(curRaan);
+            const zFinal = z1;
+
+            return { x: xFinal, y: zFinal, z: -yFinal };
+        }
+    }
+
+    /* ============================================================================
+     * MAIN TRACKER CLASS
+     * Core application logic for satellite visualization
+     * ============================================================================ */
+
+    class StarlinkTracker {
+        constructor() {
+            // === Configuration ===
+            this.config = {
+                urls: {
+                    earthDay: 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
+                    earthNight: 'https://unpkg.com/three-globe/example/img/earth-night.jpg',
+                    tle: {
+                        starlink: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle',
+                        iss: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle',
+                        gps: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=gps-ops&FORMAT=tle',
+                        galileo: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=galileo&FORMAT=tle',
+                        oneweb: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=tle'
+                    },
+                    tleJson: {
+                        starlink: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=json',
+                        iss: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=json',
+                        gps: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=gps-ops&FORMAT=json',
+                        galileo: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=galileo&FORMAT=json',
+                        oneweb: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=json'
+                    }
+                }
+            };
+
+            // === Layer Configuration ===
+            this.layerOrder = ['starlink', 'iss', 'gps', 'galileo', 'oneweb'];
+            this.layers = {
+                starlink: { label: 'Starlink', color: new THREE.Color(1, 1, 1), enabled: true, source: 'loading' },
+                iss: { label: 'ISS', color: new THREE.Color(1.0, 0.82, 0.4), enabled: true, source: 'loading' },
+                gps: { label: 'GPS', color: new THREE.Color(0.15, 0.95, 0.65), enabled: true, source: 'loading' },
+                galileo: { label: 'Galileo', color: new THREE.Color(0.55, 0.60, 0.70), enabled: true, source: 'loading' },
+                oneweb: { label: 'OneWeb', color: new THREE.Color(0.93, 0.28, 0.44), enabled: true, source: 'loading' }
+            };
+
+            // === State Variables ===
+            this.referenceTime = null;
+            this.primarySatrec = null;
+            this.simStartTime = performance.now();
+            this.lastPhysicsUpdate = 0;
+            this.lastRaycastUpdate = 0;
+            this.sunPosition = new THREE.Vector3();
+            this.mouseMoved = false;
+            this.isInitialized = false;
+            this.isDisposed = false;
+
+            // === Data Storage ===
+            this.layerData = {};
+            this.layerMeshes = {};
+            this.allSatIndex = [];
+
+            // === Selection State ===
+            this.hovered = null;
+            this.selected = null;
+
+            // === Event Handler References (for cleanup) ===
+            this._boundHandlers = {};
+
+            // === UI Element References ===
+            this.ui = {
+                container: document.getElementById('ui-container'),
+                toggleBtn: document.getElementById('ui-toggle'),
+                time: document.getElementById('utcTime'),
+                count: document.getElementById('satCount'),
+                lit: document.getElementById('litCount'),
+                dark: document.getElementById('darkCount'),
+                statusText: document.getElementById('status-text'),
+                statusDot: document.getElementById('status-dot'),
+                tooltip: document.getElementById('tooltip'),
+                slider: document.getElementById('growthSlider'),
+                speedSlider: document.getElementById('timeSpeed'),
+                speedDisplay: document.getElementById('speedDisplay'),
+                loader: document.getElementById('loader-overlay'),
+                loaderText: document.getElementById('loader-text'),
+                progress: document.getElementById('progress-fill'),
+                searchBox: document.getElementById('search-box'),
+                searchResults: document.getElementById('search-results'),
+                checkOrbit: document.getElementById('toggle-orbit'),
+                offlineBanner: document.getElementById('offline-banner'),
+                layers: {
+                    starlink: document.getElementById('layer-starlink'),
+                    iss: document.getElementById('layer-iss'),
+                    gps: document.getElementById('layer-gps'),
+                    galileo: document.getElementById('layer-galileo'),
+                    oneweb: document.getElementById('layer-oneweb')
+                },
+                badges: {
+                    starlink: document.getElementById('badge-starlink'),
+                    iss: document.getElementById('badge-iss'),
+                    gps: document.getElementById('badge-gps'),
+                    galileo: document.getElementById('badge-galileo'),
+                    oneweb: document.getElementById('badge-oneweb')
+                },
+                tooltipElements: {
+                    name: document.getElementById('tooltip-name'),
+                    layer: document.getElementById('tooltip-layer'),
+                    id: document.getElementById('tooltip-id'),
+                    alt: document.getElementById('tooltip-alt'),
+                    vel: document.getElementById('tooltip-vel'),
+                    light: document.getElementById('tooltip-light'),
+                    locked: document.getElementById('tooltip-locked')
+                }
+            };
+
+            // === Three.js Objects ===
+            this.scene = null;
+            this.camera = null;
+            this.renderer = null;
+            this.controls = null;
+            this.sunLight = null;
+            this.earthMat = null;
+            this.atmoMat = null;
+            this.orbitPathLine = null;
+            this.pointTex = null;
+            this.issSprite = null;
+            this.issTex = null;
+
+            // === Raycaster Setup ===
+            this.raycaster = new THREE.Raycaster();
+            this.raycaster.params.Points.threshold = CONSTANTS.RAYCAST_THRESHOLD;
+            this.mouse = new THREE.Vector2();
+
+            // === Temporary Vector (reused to avoid allocations) ===
+            this._tmpVec = new THREE.Vector3();
+
+            // === Disposable Resources Tracking ===
+            this._disposables = [];
+
+            this.init();
+        }
+
+        /* ========================================================================
+         * INITIALIZATION METHODS
+         * ======================================================================== */
+
+        /**
+         * Main initialization entry point.
+         * Sets up scene, loads data, and starts the animation loop.
+         */
+        async init() {
+            try {
+                this.setupScene();
+                this.setupEarth();
+                this.setupLighting();
+                this.setupOrbitVisualizer();
+                this.setupISSSprite();
+                this.setupEvents();
+                
+                await this.loadData();
+                
+                this.isInitialized = true;
+                this.animate();
+            } catch (error) {
+                handleError('Initialization', error, true);
+                this.updateStatus('Initialization failed', 'status-err');
+            }
+        }
+
+        /**
+         * Sets up the Three.js scene, camera, renderer, and controls.
+         */
+        setupScene() {
+            this.scene = new THREE.Scene();
+            this.camera = new THREE.PerspectiveCamera(
+                CONSTANTS.CAMERA_FOV, 
+                window.innerWidth / window.innerHeight, 
+                CONSTANTS.CAMERA_NEAR, 
+                CONSTANTS.CAMERA_FAR
+            );
+            this.camera.position.set(
+                CONSTANTS.CAMERA_INITIAL_DISTANCE, 
+                CONSTANTS.CAMERA_INITIAL_DISTANCE * 0.48, 
+                CONSTANTS.CAMERA_INITIAL_DISTANCE
+            );
+
+            this.renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                alpha: false,
+                powerPreference: "high-performance"
+            });
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            document.body.appendChild(this.renderer.domElement);
+
+            this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+            this.controls.enableDamping = true;
+            this.controls.dampingFactor = CONSTANTS.DAMPING_FACTOR;
+            this.controls.minDistance = CONSTANTS.CAMERA_MIN_DISTANCE;
+            this.controls.maxDistance = CONSTANTS.CAMERA_MAX_DISTANCE;
+            this.controls.autoRotate = true;
+            this.controls.autoRotateSpeed = CONSTANTS.AUTO_ROTATE_SPEED;
+            this.controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+
+            // Create default point texture
+            const canvas = document.createElement('canvas');
+            canvas.width = 16; 
+            canvas.height = 16;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(8, 8, 8, 0, Math.PI * 2);
+            ctx.fill();
+            this.pointTex = new THREE.CanvasTexture(canvas);
+            this._disposables.push(this.pointTex);
+        }
+
+        /**
+         * Sets up the Earth globe with day/night shader and atmosphere.
+         */
+        setupEarth() {
+            const loader = new THREE.TextureLoader();
+
+            const initialUniforms = {
+                dayTexture: { value: loader.load(this.config.urls.earthDay) },
+                nightTexture: { value: loader.load(this.config.urls.earthNight) },
+                sunDirection: { value: new THREE.Vector3(1, 0, 0) }
+            };
+
+            // Track textures for disposal
+            this._disposables.push(initialUniforms.dayTexture.value);
+            this._disposables.push(initialUniforms.nightTexture.value);
+
+            this.earthMat = new THREE.ShaderMaterial({
+                uniforms: initialUniforms,
+                vertexShader: `
+                    varying vec2 vUv;
+                    varying vec3 vWorldNormal;
+                    void main() {
+                        vUv = uv;
+                        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    precision mediump float;
+                    uniform sampler2D dayTexture;
+                    uniform sampler2D nightTexture;
+                    uniform vec3 sunDirection;
+                    varying vec2 vUv;
+                    varying vec3 vWorldNormal;
+
+                    void main() {
+                        vec3 day = texture2D(dayTexture, vUv).rgb;
+                        vec3 night = texture2D(nightTexture, vUv).rgb;
+                        float sunDot = dot(vWorldNormal, sunDirection);
+                        float mixVal = smoothstep(-0.10, 0.10, sunDot);
+                        vec3 atmosphere = vec3(1.0, 0.6, 0.3);
+                        float scatter = smoothstep(0.20, 0.0, abs(sunDot));
+                        vec3 final = mix(night * 2.5, day, mixVal);
+                        final += atmosphere * scatter * 0.5 * (1.0 - mixVal);
+                        gl_FragColor = vec4(final, 1.0);
+                    }
+                `
+            });
+
+            const geometry = new THREE.SphereGeometry(
+                CONSTANTS.EARTH_RADIUS_KM * CONSTANTS.RENDER_SCALE, 
+                64, 64
+            );
+            this.earthGroup = new THREE.Mesh(geometry, this.earthMat);
+            this.earthGroup.rotation.y = -Math.PI / 2;
+            this.scene.add(this.earthGroup);
+            this._disposables.push(geometry);
+            this._disposables.push(this.earthMat);
+
+            // Atmosphere shell
+            const atmoGeo = new THREE.SphereGeometry(
+                CONSTANTS.EARTH_RADIUS_KM * CONSTANTS.RENDER_SCALE * CONSTANTS.ATMOSPHERE_SCALE, 
+                64, 64
+            );
+            this.atmoMat = new THREE.ShaderMaterial({
+                uniforms: {
+                    sunDirection: { value: new THREE.Vector3(1, 0, 0) }
+                },
+                vertexShader: `
+                    varying vec3 vWorldNormal;
+                    varying vec3 vViewPosition;
+                    void main() {
+                        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+                        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                        vViewPosition = -mvPosition.xyz;
+                        gl_Position = projectionMatrix * mvPosition;
+                    }
+                `,
+                fragmentShader: `
+                    precision mediump float;
+                    uniform vec3 sunDirection;
+                    varying vec3 vWorldNormal;
+                    varying vec3 vViewPosition;
+                    void main() {
+                        vec3 viewDir = normalize(vViewPosition);
+                        float fresnel = pow(0.7 - dot(vWorldNormal, viewDir), 3.0);
+                        float sunOrientation = dot(vWorldNormal, sunDirection);
+                        float daySide = smoothstep(-0.30, 0.30, sunOrientation);
+                        gl_FragColor = vec4(0.3, 0.6, 1.0, 1.0) * fresnel * daySide * 1.5;
+                    }
+                `,
+                blending: THREE.AdditiveBlending,
+                side: THREE.BackSide,
+                transparent: true,
+                depthWrite: false
+            });
+            const atmoMesh = new THREE.Mesh(atmoGeo, this.atmoMat);
+            this.scene.add(atmoMesh);
+            this._disposables.push(atmoGeo);
+            this._disposables.push(this.atmoMat);
+        }
+
+        /**
+         * Sets up scene lighting (ambient and directional sun light).
+         */
+        setupLighting() {
+            this.scene.add(new THREE.AmbientLight(0x111111));
+            this.sunLight = new THREE.DirectionalLight(0xffffff, 2.5);
+            this.scene.add(this.sunLight);
+        }
+
+        /**
+         * Creates the background star field.
+         */
+        setupStars() {
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array(CONSTANTS.STAR_COUNT * 3);
+            for (let i = 0; i < CONSTANTS.STAR_COUNT * 3; i++) {
+                pos[i] = (Math.random() - 0.5) * CONSTANTS.STAR_SPREAD;
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            const mat = new THREE.PointsMaterial({ 
+                color: 0x888888, 
+                size: 1.2, 
+                sizeAttenuation: false 
+            });
+            this.scene.add(new THREE.Points(geo, mat));
+            this._disposables.push(geo);
+            this._disposables.push(mat);
+        }
+
+        /**
+         * Sets up the orbit path visualization line.
+         */
+        setupOrbitVisualizer() {
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(
+                new Float32Array(CONSTANTS.ORBIT_POINTS * 3), 3
+            ));
+            const mat = new THREE.LineBasicMaterial({ 
+                color: 0x33aaff, 
+                opacity: 0.8, 
+                transparent: true 
+            });
+            this.orbitPathLine = new THREE.Line(geo, mat);
+            this.orbitPathLine.visible = false;
+            this.scene.add(this.orbitPathLine);
+            this._disposables.push(geo);
+            this._disposables.push(mat);
+        }
+
+        /**
+         * Creates the special ISS sprite with custom space station icon.
+         * This makes the ISS visually distinct from regular satellite points.
+         */
+        setupISSSprite() {
+            const issCanvas = createISSIcon();
+            this.issTex = new THREE.CanvasTexture(issCanvas);
+            this.issTex.needsUpdate = true;
+            this._disposables.push(this.issTex);
+
+            const spriteMaterial = new THREE.SpriteMaterial({
+                map: this.issTex,
+                transparent: true,
+                depthTest: true,
+                depthWrite: false
+            });
+            
+            this.issSprite = new THREE.Sprite(spriteMaterial);
+            this.issSprite.scale.set(0.6, 0.6, 1);
+            this.issSprite.visible = false;
+            this.issSprite.userData.isISS = true;
+            this.scene.add(this.issSprite);
+            this._disposables.push(spriteMaterial);
+        }
+
+        /* ========================================================================
+         * EVENT HANDLING
+         * ======================================================================== */
+
+        /**
+         * Sets up all event listeners with proper cleanup references.
+         */
+        setupEvents() {
+            // Resize handler
+            this._boundHandlers.resize = () => {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            };
+            window.addEventListener('resize', this._boundHandlers.resize);
+
+            // Mouse move handler
+            this._boundHandlers.mouseMove = (e) => {
+                this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                this.mouseMoved = true;
+
+                const tip = this.ui.tooltip;
+                if (tip.style.display === 'block') {
+                    tip.style.left = (e.clientX + 20) + 'px';
+                    tip.style.top = (e.clientY + 20) + 'px';
+                }
+            };
+            window.addEventListener('mousemove', this._boundHandlers.mouseMove);
+
+            // UI toggle handler
+            const toggleMenu = () => {
+                this.ui.container.classList.toggle('hidden');
+                const isHidden = this.ui.container.classList.contains('hidden');
+                this.ui.toggleBtn.innerHTML = isHidden ? '☰' : '✕';
+            };
+            this._boundHandlers.toggleClick = toggleMenu;
+            this.ui.toggleBtn.addEventListener('click', this._boundHandlers.toggleClick);
+
+            // Layer toggle handlers
+            this.layerOrder.forEach(key => {
+                const el = this.ui.layers[key];
+                if (!el) return;
+                
+                const handler = () => {
+                    this.layers[key].enabled = el.checked;
+                    if (this.layerMeshes[key]) this.layerMeshes[key].visible = el.checked;
+                    
+                    // Also handle ISS sprite visibility
+                    if (key === 'iss' && this.issSprite) {
+                        this.issSprite.visible = el.checked;
+                    }
+
+                    if (this.selected && this.selected.layer === key && !el.checked) {
+                        this.resetSelection();
+                    }
+                    if (this.hovered && this.hovered.layer === key && !el.checked) {
+                        this.hovered = null;
+                        if (!this.selected) this.ui.tooltip.style.display = 'none';
+                    }
+                };
+                this._boundHandlers[`layer_${key}`] = handler;
+                el.addEventListener('change', handler);
+            });
+
+            // Search results click handler
+            this._boundHandlers.searchClick = (e) => {
+                const item = e.target.closest('.search-item');
+                if (item) {
+                    const layer = item.dataset.layer;
+                    const index = parseInt(item.dataset.index, 10);
+                    this.selectSatellite(layer, index);
+                }
+            };
+            this.ui.searchResults.addEventListener('click', this._boundHandlers.searchClick);
+
+            // Search input handler with debounce
+            let searchTimeout = null;
+            this._boundHandlers.searchInput = (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => this.performSearch(e.target.value), CONSTANTS.SEARCH_DEBOUNCE_MS);
+            };
+            this.ui.searchBox.addEventListener('input', this._boundHandlers.searchInput);
+
+            // Window click handler for selection
+            this._boundHandlers.windowClick = (e) => {
+                if (e.target.closest('#ui-container') || e.target.closest('#ui-toggle') || e.target.closest('#controls')) return;
+
+                if (this.hovered) {
+                    this.selectSatellite(this.hovered.layer, this.hovered.index);
+                } else if (this.selected) {
+                    this.resetSelection();
+                }
+            };
+            window.addEventListener('click', this._boundHandlers.windowClick);
+
+            // Keyboard handler
+            this._boundHandlers.keyDown = (e) => {
+                if (e.key === 'Escape') this.resetSelection();
+                if (e.key.toLowerCase() === 'h') toggleMenu();
+            };
+            window.addEventListener('keydown', this._boundHandlers.keyDown);
+
+            // Speed slider handler
+            this._boundHandlers.speedInput = (e) => {
+                this.ui.speedDisplay.textContent = e.target.value;
+            };
+            this.ui.speedSlider.addEventListener('input', this._boundHandlers.speedInput);
+
+            // Online/offline handlers
+            this._boundHandlers.online = () => {
+                this.ui.offlineBanner.style.display = 'none';
+                this.refreshData();
+            };
+            this._boundHandlers.offline = () => {
+                this.ui.offlineBanner.style.display = 'block';
+            };
+            window.addEventListener('online', this._boundHandlers.online);
+            window.addEventListener('offline', this._boundHandlers.offline);
+
+            if (!navigator.onLine) {
+                this.ui.offlineBanner.style.display = 'block';
+            }
+        }
+
+        /* ========================================================================
+         * SEARCH FUNCTIONALITY
+         * ======================================================================== */
+
+        /**
+         * Performs satellite search and updates results UI.
+         * @param {string} val - Search query string
+         */
+        performSearch(val) {
+            const results = this.ui.searchResults;
+            results.innerHTML = '';
+
+            val = val.toLowerCase();
+            if (val.length < CONSTANTS.SEARCH_MIN_CHARS) return;
+
+            try {
+                const matches = this.allSatIndex
+                    .filter(item => item.name && item.name.toLowerCase().includes(val))
+                    .slice(0, CONSTANTS.SEARCH_MAX_RESULTS);
+
+                matches.forEach(m => {
+                    const div = document.createElement('div');
+                    div.className = 'search-item';
+                    // Sanitize the satellite name before displaying
+                    div.textContent = `${sanitizeHTML(m.name)}  [${this.layers[m.layer].label}]`;
+                    div.dataset.layer = m.layer;
+                    div.dataset.index = m.index;
+                    results.appendChild(div);
+                });
+            } catch (error) {
+                handleError('Search', error);
+            }
+        }
+
+        /* ========================================================================
+         * SELECTION MANAGEMENT
+         * ======================================================================== */
+
+        /**
+         * Resets the current satellite selection.
+         */
+        resetSelection() {
+            if (!this.selected) return;
+
+            try {
+                const { layer, index } = this.selected;
+                const mesh = this.layerMeshes[layer];
+                if (mesh) {
+                    const colors = mesh.geometry.attributes.color;
+                    colors.setXYZ(index, 1, 1, 1);
+                    colors.needsUpdate = true;
+                }
+
+                this.selected = null;
+                this.ui.tooltip.style.display = 'none';
+                this.controls.autoRotate = true;
+                this.orbitPathLine.visible = false;
+                this.ui.searchBox.value = '';
+            } catch (error) {
+                handleError('Reset selection', error);
+            }
+        }
+
+        /**
+         * Selects a satellite by layer and index.
+         * @param {string} layerKey - The layer identifier
+         * @param {number} index - The satellite index within the layer
+         */
+        selectSatellite(layerKey, index) {
+            try {
+                if (this.selected) {
+                    const prev = this.selected;
+                    const prevMesh = this.layerMeshes[prev.layer];
+                    if (prevMesh) {
+                        prevMesh.geometry.attributes.color.setXYZ(prev.index, 1, 1, 1);
+                        prevMesh.geometry.attributes.color.needsUpdate = true;
+                    }
+                }
+
+                this.selected = { layer: layerKey, index };
+                this.ui.searchResults.innerHTML = '';
+                this.ui.searchBox.value = '';
+                
+                this.ui.searchBox.blur();
+                if (document.activeElement) {
+                    document.activeElement.blur();
+                }
+
+                this.controls.autoRotate = false;
+
+                const mesh = this.layerMeshes[layerKey];
+                if (!mesh) return;
+
+                const colors = mesh.geometry.attributes.color;
+                colors.setXYZ(index, 0, 1, 0);
+                colors.needsUpdate = true;
+            } catch (error) {
+                handleError('Select satellite', error);
+            }
+        }
+
+        /* ========================================================================
+         * ASTRONOMICAL CALCULATIONS
+         * ======================================================================== */
+
+        /**
+         * Calculates the Sun's position for a given date using astronomical algorithms.
+         * Updates Earth shader uniforms and lighting accordingly.
+         * @param {Date} date - The date/time to calculate sun position for
+         */
+        calculateSunPosition(date) {
+            try {
+                // Julian Date calculation
+                const JD = (date.getTime() / 86400000.0) + 2440587.5;
+                const T = (JD - 2451545.0) / 36525.0;
+
+                // Mean longitude and anomaly of the Sun
+                const L0 = (280.46646 + 36000.76983 * T + 0.0003032 * T * T) % 360;
+                const M = (357.52911 + 35999.05029 * T - 0.0001537 * T * T) % 360;
+                
+                const rad = Math.PI / 180;
+                const Mrad = M * rad;
+                
+                // Equation of center
+                const C = (1.914602 - 0.004817 * T - 0.000014 * T * T) * Math.sin(Mrad)
+                        + (0.019993 - 0.000101 * T) * Math.sin(2 * Mrad)
+                        + 0.000289 * Math.sin(3 * Mrad);
+                
+                const sunLon = (L0 + C) % 360;
+                
+                // Obliquity of the ecliptic
+                const epsilon = 23.439291 - 0.0130042 * T - 0.00000016 * T * T;
+                const epsilonRad = epsilon * rad;
+                const lambdaRad = sunLon * rad;
+
+                // Right Ascension and Declination
+                const RA = Math.atan2(
+                    Math.cos(epsilonRad) * Math.sin(lambdaRad),
+                    Math.cos(lambdaRad)
+                );
+                const Dec = Math.asin(Math.sin(epsilonRad) * Math.sin(lambdaRad));
+
+                // Convert to ECEF coordinates
+                const GMST = satellite.gstime(date);
+                const sunLonECEF = RA - GMST - Math.PI / 2;
+
+                const x = Math.cos(Dec) * Math.cos(sunLonECEF);
+                const y = Math.cos(Dec) * Math.sin(sunLonECEF);
+                const z = Math.sin(Dec);
+
+                // Convert to Three.js coordinate system
+                const sunVec = new THREE.Vector3(x, z, -y).normalize();
+                this.sunPosition.copy(sunVec);
+
+                // Update shader uniforms
+                if (this.earthMat && this.earthMat.uniforms) {
+                    this.earthMat.uniforms.sunDirection.value.copy(sunVec);
+                }
+                if (this.atmoMat && this.atmoMat.uniforms) {
+                    this.atmoMat.uniforms.sunDirection.value.copy(sunVec);
+                }
+                if (this.sunLight) this.sunLight.position.copy(sunVec).multiplyScalar(100);
+
+                // Update UI time display
+                this.ui.time.innerText = date.toISOString().split('T')[1].split('.')[0] + " UTC";
+            } catch (error) {
+                handleError('Sun position calculation', error);
+            }
+        }
+
+        /**
+         * Computes the shadow factor for a satellite position.
+         * Returns 0 for fully sunlit, 1 for full umbra, intermediate for penumbra.
+         * @param {number} xKm - X position in km
+         * @param {number} yKm - Y position in km
+         * @param {number} zKm - Z position in km
+         * @param {THREE.Vector3} sunDir - Normalized sun direction vector
+         * @returns {number} Shadow factor (0-1)
+         */
+        computeShadowFactorKm(xKm, yKm, zKm, sunDir) {
+            // Project satellite position onto sun direction
+            const projKm = (xKm * sunDir.x + yKm * sunDir.y + zKm * sunDir.z);
+            
+            // If satellite is on the sun side of Earth, it's fully lit
+            if (projKm >= 0) return 0;
+
+            // Calculate perpendicular distance from Earth-Sun line
+            const r2 = xKm * xKm + yKm * yKm + zKm * zKm;
+            const proj2 = projKm * projKm;
+            const d2 = Math.max(0, r2 - proj2);
+            const dKm = Math.sqrt(d2);
+            const xBehind = -projKm;
+
+            const Re = CONSTANTS.EARTH_RADIUS_ATMO_KM;
+            const Rs = CONSTANTS.SUN_RADIUS_KM;
+            const D = CONSTANTS.SUN_DISTANCE_KM;
+
+            // Calculate umbra and penumbra cone radii at satellite distance
+            let rUmbra = Re - xBehind * (Rs - Re) / D;
+            if (rUmbra < 0) rUmbra = 0;
+            const rPen = Re + xBehind * (Rs + Re) / D;
+
+            // Determine shadow state
+            if (dKm <= rUmbra) return 1;  // Full umbra
+            if (dKm >= rPen) return 0;    // Fully sunlit
+
+            // Smooth transition through penumbra
+            const t = (dKm - rUmbra) / (rPen - rUmbra);
+            const s = t * t * (3 - 2 * t);  // Smoothstep
+            return 1 - s;
+        }
+
+        /* ========================================================================
+         * DATA LOADING
+         * ======================================================================== */
+
+        /**
+         * Main data loading orchestration method.
+         * Loads TLE data for all constellation layers.
+         */
+        async loadData() {
+            this.updateStatus('Downloading orbital data...', 'status-warn');
+            this.ui.progress.style.width = '10%';
+
+            let completed = 0;
+            const total = this.layerOrder.length;
+            this.ui.loaderText.textContent = 'Fetching satellite data...';
+
+            await Promise.allSettled(
+                this.layerOrder.map(async (key) => {
+                    const tleUrl = this.config.urls.tle[key];
+                    try {
+                        const res = await this.fetchTLEWithCache(tleUrl, key, key);
+                        if (res && res.text) {
+                            this.processTLEForLayer(res.text, key, res.source);
+                            this.updateBadge(key, res.source);
+                        } else {
+                            this.generateSimulationLayer(key);
+                            this.updateBadge(key, 'sim');
+                        }
+                    } catch (error) {
+                        handleError(`Load ${key} data`, error);
+                        this.generateSimulationLayer(key);
+                        this.updateBadge(key, 'sim');
+                    }
+
+                    completed++;
+                    const pct = 10 + Math.round((completed / total) * 70);
+                    this.ui.progress.style.width = `${pct}%`;
+                })
+            );
+
+            await this.initTimeSync();
+
+            this.createLayerMeshes();
+            this.rebuildSearchIndex();
+
+            this.ui.progress.style.width = '100%';
+            if (!this.ui.statusText.innerText.includes('Synced')) {
+                this.updateStatus('Ready', 'status-ok');
+            }
+
+            this.ui.loader.classList.add('hidden');
+        }
+
+        /**
+         * Fetches TLE data with caching support.
+         * @param {string} tleUrl - URL to fetch TLE from
+         * @param {string} key - Cache key identifier
+         * @param {string} layerKey - Layer identifier for fallback URL lookup
+         * @returns {Promise<{text: string, source: string}|null>} TLE data and source
+         */
+        async fetchTLEWithCache(tleUrl, key, layerKey) {
+            const cacheKey = `tle_cache_${key}`;
+            
+            // Check cache first
+            try {
+                const cached = localStorage.getItem(cacheKey);
+                if (cached) {
+                    const { data, timestamp } = JSON.parse(cached);
+                    const age = Date.now() - timestamp;
+                    if (age < CONSTANTS.CACHE_TTL_MS) {
+                        return { text: data, source: 'cached' };
+                    }
+                }
+            } catch (e) {
+                handleError('Cache read', e);
+            }
+
+            // Use cached data if offline
+            if (!navigator.onLine) {
+                try {
+                    const cached = localStorage.getItem(cacheKey);
+                    if (cached) {
+                        const { data } = JSON.parse(cached);
+                        return { text: data, source: 'cached' };
+                    }
+                } catch (e) {
+                    handleError('Offline cache read', e);
+                }
+                return null;
+            }
+
+            // Fetch fresh — hard cap so no layer blocks indefinitely
+            const result = await Promise.race([
+                this.fetchWithFallback(tleUrl, layerKey),
+                new Promise((resolve) =>
+                    setTimeout(() => resolve(null), CONSTANTS.FETCH_TIMEOUT_MAX_TOTAL)
+                )
+            ]);
+
+            // Update cache
+            if (result && result.text) {
+                try {
+                    localStorage.setItem(cacheKey, JSON.stringify({
+                        data: result.text,
+                        timestamp: Date.now()
+                    }));
+                } catch (e) {
+                    handleError('Cache write', e);
+                }
+                return result;
+            }
+
+            // All network methods failed — use stale cache instead of simulated orbits
+            try {
+                const stale = localStorage.getItem(cacheKey);
+                if (stale) {
+                    const { data, timestamp } = JSON.parse(stale);
+                    return { text: data, source: 'cached', cacheAge: Date.now() - timestamp };
+                }
+            } catch (e) {
+                handleError('Stale cache fallback', e);
+            }
+
+            return null;
+        }
+
+        /**
+         * Attempts to fetch TLE data using multiple methods and proxies.
+         * @param {string} tleUrl - Primary URL to fetch
+         * @param {string} layerKey - Layer identifier
+         * @returns {Promise<{text: string, source: string}|null>} TLE data or null
+         */
+        async fetchWithFallback(tleUrl, layerKey) {
+            const attemptFetch = async (url, timeout = CONSTANTS.FETCH_TIMEOUT_PROXY) => {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
+                try {
+                    const res = await fetch(url, { 
+                        signal: controller.signal,
+                        mode: 'cors'
+                    });
+                    if (!res.ok) throw new Error(res.statusText);
+                    return await res.text();
+                } finally {
+                    clearTimeout(timeoutId);
+                }
+            };
+
+            // Convert JSON GP data to TLE format
+            const jsonToTLE = (jsonData) => {
+                const lines = [];
+                for (const sat of jsonData) {
+                    if (sat.TLE_LINE1 && sat.TLE_LINE2) {
+                        lines.push(sat.OBJECT_NAME || 'UNKNOWN');
+                        lines.push(sat.TLE_LINE1);
+                        lines.push(sat.TLE_LINE2);
+                    }
+                }
+                return lines.join('\n');
+            };
+
+            // 1. Direct TLE fetch with retry (CelesTrak supports CORS natively)
+            // 2 attempts keeps worst-case ~21s so JSON format can still run inside the 30s cap.
+            try {
+                let lastErr;
+                for (let attempt = 0; attempt < 2; attempt++) {
+                    try {
+                        const text = await attemptFetch(tleUrl, CONSTANTS.FETCH_TIMEOUT_DIRECT);
+                        if (text && text.includes('1 ')) return { text, source: 'live' };
+                    } catch (e) {
+                        lastErr = e;
+                        if (attempt < 1) await new Promise((r) => setTimeout(r, 1000));
+                    }
+                }
+                if (lastErr) console.log(`[${layerKey}] Direct fetch failed: ${lastErr.message}`);
+            } catch (e) {
+                console.log(`[${layerKey}] Direct fetch error: ${e.message}`);
+            }
+
+            // 2. JSON format — different response format, independent chance of success
+            try {
+                const jsonUrl = this.config.urls.tleJson[layerKey];
+                if (jsonUrl) {
+                    let lastErr;
+                    for (let attempt = 0; attempt < 2; attempt++) {
+                        try {
+                            const jsonText = await attemptFetch(jsonUrl, CONSTANTS.FETCH_TIMEOUT_DIRECT);
+                            const jsonData = JSON.parse(jsonText);
+                            if (Array.isArray(jsonData) && jsonData.length > 0) {
+                                const tleText = jsonToTLE(jsonData);
+                                if (tleText && tleText.includes('1 ')) return { text: tleText, source: 'live' };
+                            }
+                        } catch (e) {
+                            lastErr = e;
+                            if (attempt < 1) await new Promise((r) => setTimeout(r, 1000));
+                        }
+                    }
+                    if (lastErr) console.log(`[${layerKey}] JSON format failed: ${lastErr.message}`);
+                }
+            } catch (e) {
+                console.log(`[${layerKey}] JSON format error: ${e.message}`);
+            }
+
+            // 3. CORS proxies — fallback for users who cannot reach CelesTrak directly
+            const proxies = [
+                { name: 'corsproxy.io', url: `https://corsproxy.io/?url=${encodeURIComponent(tleUrl)}`, parseJson: false },
+                { name: 'allorigins', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(tleUrl)}`, parseJson: false },
+                { name: 'codetabs', url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(tleUrl)}`, parseJson: false }
+            ];
+
+            for (const proxy of proxies) {
+                try {
+                    const text = await attemptFetch(proxy.url, CONSTANTS.FETCH_TIMEOUT_PROXY);
+                    if (text && text.includes('1 ')) return { text, source: 'live' };
+                } catch (e) {
+                    console.log(`[${layerKey}] ${proxy.name} failed: ${e.message}`);
+                }
+            }
+
+            console.error(`[${layerKey}] All fetch methods failed`);
+            return null;
+        }
+
+        /**
+         * Updates the data source badge for a layer.
+         * @param {string} key - Layer identifier
+         * @param {string} source - Data source ('live', 'cached', 'sim')
+         */
+        updateBadge(key, source) {
+            const badge = this.ui.badges[key];
+            if (!badge) return;
+
+            badge.className = 'source-badge';
+            if (source === 'live') {
+                badge.classList.add('live');
+                badge.textContent = 'LIVE';
+            } else if (source === 'cached') {
+                badge.classList.add('cached');
+                badge.textContent = 'CACHED';
+            } else {
+                badge.classList.add('sim');
+                badge.textContent = 'SIM';
+            }
+            this.layers[key].source = source;
+        }
+
+        /**
+         * Processes TLE data and creates satellite records for a layer.
+         * @param {string} data - Raw TLE text data
+         * @param {string} layerKey - Layer identifier
+         * @param {string} sourceLabel - Source label for status display
+         */
+        processTLEForLayer(data, layerKey, sourceLabel) {
+            try {
+                const lines = data.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                const satData = [];
+                const satNames = [];
+
+                for (let i = 0; i < lines.length - 2; i++) {
+                    const l0 = lines[i];
+                    const l1 = lines[i + 1];
+                    const l2 = lines[i + 2];
+
+                    if (l1.startsWith('1 ') && l2.startsWith('2 ')) {
+                        try {
+                            // For ISS layer, filter to only ISS-related objects
+                            if (layerKey === 'iss') {
+                                const name = (l0 || '').toUpperCase();
+                                if (!name.includes('ISS')) continue;
+                            }
+
+                            const rec = satellite.twoline2satrec(l1, l2);
+                            if (!rec.error) {
+                                rec.isSimulated = false;
+                                rec.epochyr = parseInt(l1.substring(18, 20), 10);
+                                rec.epochdays = parseFloat(l1.substring(20, 32));
+                                satData.push(rec);
+                                satNames.push(l0);
+                                if (!this.primarySatrec) this.primarySatrec = rec;
+                                i += 2;
+                            }
+                        } catch (err) {
+                            // Skip malformed TLE entries silently
+                        }
+                    }
+                }
+
+                // Fallback to simulation if no valid data found for ISS
+                if (layerKey === 'iss' && satData.length === 0) {
+                    this.generateSimulationLayer(layerKey);
+                    return;
+                }
+
+                this.layerData[layerKey] = { satData, satNames };
+                this.updateStatus(`${this.layers[layerKey].label}: ${sourceLabel}`, 'status-ok');
+            } catch (error) {
+                handleError(`Process TLE for ${layerKey}`, error);
+                this.generateSimulationLayer(layerKey);
+            }
+        }
+
+        /**
+         * Generates simulated satellite data for a layer when live data unavailable.
+         * Uses realistic orbital parameters for each constellation type.
+         * @param {string} layerKey - Layer identifier
+         */
+        generateSimulationLayer(layerKey) {
+            let shells = [];
+
+            // Define realistic orbital shells for each constellation
+            if (layerKey === 'starlink') {
+                shells = [
+                    { alt: 550, inc: 53.0, count: 1500 },   // Main shell
+                    { alt: 540, inc: 53.2, count: 1200 },   // Alternate shell
+                    { alt: 570, inc: 70.0, count: 500 },    // Polar coverage
+                    { alt: 560, inc: 97.6, count: 300 }     // Sun-synchronous
+                ];
+            } else if (layerKey === 'oneweb') {
+                shells = [{ alt: 1200, inc: 87.9, count: 648 }];  // Polar LEO
+            } else if (layerKey === 'gps') {
+                shells = [{ alt: 20200, inc: 55.0, count: 32 }];  // MEO constellation
+            } else if (layerKey === 'galileo') {
+                shells = [{ alt: 23222, inc: 56.0, count: 24 }];  // MEO constellation
+            } else if (layerKey === 'iss') {
+                shells = [{ alt: 420, inc: 51.6, count: 1 }];     // Single station in LEO
+            }
+
+            const satData = [];
+            const satNames = [];
+
+            let id = 0;
+            shells.forEach(shell => {
+                const planes = Math.max(1, Math.round(Math.sqrt(shell.count)));
+                const perPlane = Math.ceil(shell.count / planes);
+                for (let p = 0; p < planes; p++) {
+                    const raan = (p / planes) * 360;
+                    for (let s = 0; s < perPlane; s++) {
+                        if (satData.length >= shell.count) break;
+                        const anomaly = (s / perPlane) * 360 + (p % 2) * 5;
+                        satData.push(new SimulatedOrbit(shell.alt, shell.inc, raan, anomaly));
+                        satNames.push(`${this.layers[layerKey].label.toUpperCase()}-SIM-${++id}`);
+                    }
+                }
+            });
+
+            this.layerData[layerKey] = { satData, satNames };
+            this.updateStatus(`${this.layers[layerKey].label}: Simulated`, 'status-warn');
+        }
+
+        /**
+         * Initializes time synchronization with external API or fallback.
+         */
+        async initTimeSync() {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), CONSTANTS.FETCH_TIMEOUT_TIME_API);
+
+            try {
+                const response = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', {
+                    signal: controller.signal
+                });
+                const data = await response.json();
+                this.referenceTime = new Date(data.utc_datetime).getTime();
+                this.updateStatus('UTC Synced (Global API)', 'status-ok');
+            } catch (e) {
+                // Fallback to TLE epoch or system clock
+                if (this.primarySatrec && !this.primarySatrec.isSimulated) {
+                    const sat = this.primarySatrec;
+                    const currentYear = new Date().getFullYear() % 100;
+                    const century = (sat.epochyr > currentYear + 30) ? 1900 : 2000;
+                    const year = century + sat.epochyr;
+                    const jan1 = Date.UTC(year, 0, 1);
+                    const msOffset = (sat.epochdays - 1) * 24 * 60 * 60 * 1000;
+                    this.referenceTime = jan1 + msOffset;
+                    this.updateStatus('UTC Synced (TLE Epoch)', 'status-warn');
+                } else {
+                    this.referenceTime = Date.now();
+                    this.updateStatus('System Clock (Fallback)', 'status-err');
+                }
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        }
+
+        /**
+         * Updates the status indicator in the UI.
+         * @param {string} msg - Status message
+         * @param {string} cssClass - CSS class for indicator color
+         */
+        updateStatus(msg, cssClass) {
+            this.ui.statusText.innerText = msg;
+            this.ui.statusDot.className = `status-indicator ${cssClass}`;
+        }
+
+        /**
+         * Refreshes all TLE data from remote sources.
+         */
+        async refreshData() {
+            // Clear cache
+            this.layerOrder.forEach(key => {
+                try {
+                    localStorage.removeItem(`tle_cache_${key}`);
+                } catch (e) {
+                    handleError('Clear cache', e);
+                }
+            });
+            
+            this.updateStatus('Refreshing data...', 'status-warn');
+            
+            for (const key of this.layerOrder) {
+                try {
+                    const tleUrl = this.config.urls.tle[key];
+                    const res = await this.fetchTLEWithCache(tleUrl, key, key);
+                    
+                    if (res && res.text) {
+                        this.processTLEForLayer(res.text, key, res.source);
+                        this.updateBadge(key, res.source);
+                    }
+                } catch (error) {
+                    handleError(`Refresh ${key}`, error);
+                }
+            }
+            
+            this.createLayerMeshes();
+            this.rebuildSearchIndex();
+            this.updateStatus('Data refreshed', 'status-ok');
+        }
+
+        /* ========================================================================
+         * MESH MANAGEMENT
+         * ======================================================================== */
+
+        /**
+         * Creates Three.js point meshes for all satellite layers.
+         * Disposes of existing meshes first to prevent memory leaks.
+         */
+        createLayerMeshes() {
+            // Dispose existing meshes
+            Object.keys(this.layerMeshes).forEach(key => {
+                const m = this.layerMeshes[key];
+                if (!m) return;
+                this.scene.remove(m);
+                if (m.geometry) m.geometry.dispose();
+                if (m.material) m.material.dispose();
+            });
+            this.layerMeshes = {};
+
+            // Create new meshes for each layer
+            this.layerOrder.forEach(layerKey => {
+                const layer = this.layerData[layerKey];
+                if (!layer) {
+                    this.layerData[layerKey] = { satData: [], satNames: [] };
+                    return;
+                }
+
+                const count = layer.satData.length;
+                const geometry = new THREE.BufferGeometry();
+                const pos = new Float32Array(count * 3);
+                const color = new Float32Array(count * 3);
+
+                // Initialize with zeros
+                for (let i = 0; i < pos.length; i++) {
+                    pos[i] = 0;
+                    color[i] = 1;
+                }
+
+                geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                geometry.setAttribute('color', new THREE.BufferAttribute(color, 3));
+
+                const material = new THREE.PointsMaterial({
+                    map: this.pointTex,
+                    size: CONSTANTS.POINT_SIZE_DEFAULT,
+                    vertexColors: true,
+                    transparent: true,
+                    alphaTest: 0.5,
+                    sizeAttenuation: false
+                });
+
+                const points = new THREE.Points(geometry, material);
+                points.frustumCulled = false;
+                points.visible = !!this.layers[layerKey].enabled;
+                points.userData.layerKey = layerKey;
+
+                this.layerMeshes[layerKey] = points;
+                this.scene.add(points);
+            });
+        }
+
+        /**
+         * Rebuilds the search index from all satellite layers.
+         */
+        rebuildSearchIndex() {
+            this.allSatIndex = [];
+            this.layerOrder.forEach(layerKey => {
+                const names = (this.layerData[layerKey] && this.layerData[layerKey].satNames) || [];
+                for (let i = 0; i < names.length; i++) {
+                    this.allSatIndex.push({ name: names[i], layer: layerKey, index: i });
+                }
+            });
+        }
+
+        /* ========================================================================
+         * PHYSICS & RENDERING UPDATE
+         * ======================================================================== */
+
+        /**
+         * Updates satellite positions and visual states.
+         * Called at PHYSICS_HZ frequency.
+         */
+        updatePhysics() {
+            if (!this.referenceTime || !this.isInitialized) return;
+
+            const now = performance.now();
+            const rate = 1000 / CONSTANTS.PHYSICS_HZ;
+            if (now - this.lastPhysicsUpdate < rate) return;
+            this.lastPhysicsUpdate = now;
+
+            try {
+                const timeSpeed = parseFloat(this.ui.speedSlider.value);
+                const elapsed = (now - this.simStartTime) * timeSpeed;
+                const simDate = new Date(this.referenceTime + elapsed);
+
+                this.calculateSunPosition(simDate);
+
+                const gmst = satellite.gstime(simDate);
+                const sunVec = this.sunPosition;
+
+                // Update orbit path if satellite selected
+                if (this.selected && this.ui.checkOrbit.checked) {
+                    this.updateOrbitPath(this.selected.layer, this.selected.index, simDate);
+                } else {
+                    this.orbitPathLine.visible = false;
+                }
+
+                let totalActive = 0;
+                let lit = 0, dark = 0;
+
+                // Track ISS position for sprite update
+                let issPosition = null;
+                let issShadow = 0;
+
+                for (const layerKey of this.layerOrder) {
+                    const mesh = this.layerMeshes[layerKey];
+                    const layer = this.layerData[layerKey];
+                    if (!mesh || !layer) continue;
+
+                    const enabled = !!this.layers[layerKey].enabled && 
+                                  (!this.ui.layers[layerKey] || this.ui.layers[layerKey].checked);
+                    mesh.visible = enabled;
+                    if (!enabled) continue;
+
+                    const positions = mesh.geometry.attributes.position;
+                    const colors = mesh.geometry.attributes.color;
+
+                    const totalCount = layer.satData.length;
+                    let activeCount = totalCount;
+
+                    // Apply density slider only to Starlink
+                    if (layerKey === 'starlink') {
+                        activeCount = Math.floor(totalCount * (this.ui.slider.value / 100));
+                    }
+
+                    totalActive += activeCount;
+
+                    const baseC = this.layers[layerKey].color;
+                    const darkC = CONSTANTS.DARK_COLOR;
+
+                    for (let i = 0; i < activeCount; i++) {
+                        const sat = layer.satData[i];
+                        let x, y, z, vX, vY, vZ;
+
+                        if (sat.isSimulated) {
+                            const pos = sat.getPos(simDate);
+                            x = pos.x; y = pos.y; z = pos.z;
+                        } else {
+                            try {
+                                const pv = satellite.propagate(sat, simDate);
+                                if (pv.position && !isNaN(pv.position.x)) {
+                                    vX = pv.velocity.x; vY = pv.velocity.y; vZ = pv.velocity.z;
+                                    const gd = satellite.eciToGeodetic(pv.position, gmst);
+
+                                    const alt = (CONSTANTS.EARTH_RADIUS_KM + gd.height) * CONSTANTS.RENDER_SCALE;
+                                    const phi = gd.latitude;
+                                    const theta = gd.longitude;
+
+                                    x = alt * Math.cos(phi) * Math.sin(theta);
+                                    y = alt * Math.sin(phi);
+                                    z = alt * Math.cos(phi) * Math.cos(theta);
+                                } else {
+                                    positions.setXYZ(i, 0, 0, 0);
+                                    continue;
+                                }
+                            } catch (e) {
+                                positions.setXYZ(i, 0, 0, 0);
+                                continue;
+                            }
+                        }
+
+                        positions.setXYZ(i, x, y, z);
+
+                        // Calculate shadow state
+                        const xKm = x / CONSTANTS.RENDER_SCALE;
+                        const yKm = y / CONSTANTS.RENDER_SCALE;
+                        const zKm = z / CONSTANTS.RENDER_SCALE;
+                        const shadow = this.computeShadowFactorKm(xKm, yKm, zKm, sunVec);
+
+                        if (shadow > CONSTANTS.UMBRA_THRESHOLD) dark++; 
+                        else lit++;
+
+                        // Check if this is the ISS to update the sprite
+                        const satName = layer.satNames[i] || '';
+                        const isISS = layerKey === 'iss' && 
+                                     (satName.toUpperCase().includes('ISS (ZARYA)') || 
+                                      satName.toUpperCase() === 'ISS' ||
+                                      satName.toUpperCase().includes('ISS ('));
+                        
+                        if (isISS) {
+                            issPosition = { x, y, z };
+                            issShadow = shadow;
+                        }
+
+                        const isSelected = this.selected && 
+                                          this.selected.layer === layerKey && 
+                                          this.selected.index === i;
+                        const isHovered = this.hovered && 
+                                         this.hovered.layer === layerKey && 
+                                         this.hovered.index === i;
+
+                        if (isSelected) {
+                            colors.setXYZ(i, 0, 1, 0);
+                            this.updateTooltip(
+                                layerKey, i, 
+                                Math.sqrt(xKm * xKm + yKm * yKm + zKm * zKm), 
+                                (vX !== undefined && vY !== undefined && vZ !== undefined) ? 
+                                    Math.sqrt(vX * vX + vY * vY + vZ * vZ) : 0, 
+                                shadow, true
+                            );
+                        } else if (isHovered) {
+                            colors.setXYZ(i, 0, 1, 1);
+                            this.updateTooltip(
+                                layerKey, i, 
+                                Math.sqrt(xKm * xKm + yKm * yKm + zKm * zKm),
+                                (vX !== undefined && vY !== undefined && vZ !== undefined) ? 
+                                    Math.sqrt(vX * vX + vY * vY + vZ * vZ) : 0,
+                                shadow, false
+                            );
+                        } else {
+                            // Apply shadow-based coloring
+                            const t = Math.pow(shadow, CONSTANTS.SHADOW_COLOR_EXPONENT);
+                            const r = baseC.r * (1 - t) + darkC.r * t;
+                            const g = baseC.g * (1 - t) + darkC.g * t;
+                            const b = baseC.b * (1 - t) + darkC.b * t;
+                            colors.setXYZ(i, r, g, b);
+                        }
+                    }
+
+                    // Zero out inactive satellites
+                    if (activeCount < totalCount) {
+                        for (let j = activeCount; j < totalCount; j++) {
+                            positions.setXYZ(j, 0, 0, 0);
+                        }
+                    }
+
+                    mesh.geometry.setDrawRange(0, activeCount);
+                    positions.needsUpdate = true;
+                    colors.needsUpdate = true;
+                }
+
+                // Update ISS sprite position
+                if (this.issSprite && issPosition && this.layers.iss.enabled) {
+                    this.issSprite.position.set(issPosition.x, issPosition.y, issPosition.z);
+                    this.issSprite.visible = true;
+                    
+                    // Adjust sprite brightness based on shadow
+                    const brightness = 1 - (issShadow * 0.7);
+                    this.issSprite.material.opacity = brightness;
+                } else if (this.issSprite) {
+                    this.issSprite.visible = false;
+                }
+
+                // Update UI stats
+                this.ui.count.innerText = totalActive;
+                this.ui.lit.innerText = lit;
+                this.ui.dark.innerText = dark;
+            } catch (error) {
+                handleError('Physics update', error);
+            }
+        }
+
+        /**
+         * Updates the orbit path visualization for a selected satellite.
+         * @param {string} layerKey - Layer identifier
+         * @param {number} index - Satellite index
+         * @param {Date} startDate - Current simulation time
+         */
+        updateOrbitPath(layerKey, index, startDate) {
+            const layer = this.layerData[layerKey];
+            if (!layer) return;
+
+            const sat = layer.satData[index];
+            if (!sat) return;
+
+            try {
+                this.orbitPathLine.visible = true;
+                const posArr = this.orbitPathLine.geometry.attributes.position.array;
+                const steps = CONSTANTS.ORBIT_POINTS;
+                const durationMins = CONSTANTS.ORBIT_DURATION_MINS;
+                let validPts = 0;
+
+                for (let i = 0; i < steps; i++) {
+                    const future = new Date(startDate.getTime() + (i * (durationMins / steps) * 60000));
+                    let x, y, z;
+
+                    try {
+                        if (sat.isSimulated) {
+                            const p = sat.getPos(future);
+                            x = p.x; y = p.y; z = p.z;
+                        } else {
+                            const pv = satellite.propagate(sat, future);
+                            if (pv.position && !isNaN(pv.position.x)) {
+                                const gmst = satellite.gstime(future);
+                                const gd = satellite.eciToGeodetic(pv.position, gmst);
+                                const alt = (CONSTANTS.EARTH_RADIUS_KM + gd.height) * CONSTANTS.RENDER_SCALE;
+                                x = alt * Math.cos(gd.latitude) * Math.sin(gd.longitude);
+                                y = alt * Math.sin(gd.latitude);
+                                z = alt * Math.cos(gd.latitude) * Math.cos(gd.longitude);
+                            }
+                        }
+                    } catch (e) {
+                        // Skip this point on propagation error
+                    }
+
+                    if (x !== undefined && !isNaN(x)) {
+                        posArr[validPts * 3] = x;
+                        posArr[validPts * 3 + 1] = y;
+                        posArr[validPts * 3 + 2] = z;
+                        validPts++;
+                    }
+                }
+                
+                this.orbitPathLine.geometry.setDrawRange(0, validPts);
+                this.orbitPathLine.geometry.attributes.position.needsUpdate = true;
+            } catch (error) {
+                handleError('Orbit path update', error);
+                this.orbitPathLine.visible = false;
+            }
+        }
+
+        /**
+         * Updates the tooltip display with satellite information.
+         * Uses sanitized names to prevent XSS.
+         * @param {string} layerKey - Layer identifier
+         * @param {number} idx - Satellite index
+         * @param {number} distKm - Distance from Earth center in km
+         * @param {number} vel - Velocity in km/s
+         * @param {number} shadow - Shadow factor (0-1)
+         * @param {boolean} isLocked - Whether satellite is selected
+         */
+        updateTooltip(layerKey, idx, distKm, vel, shadow, isLocked) {
+            const rawName = (this.layerData[layerKey].satNames[idx]) || "Unknown Object";
+            // Sanitize the satellite name to prevent XSS
+            const safeName = sanitizeHTML(rawName);
+            const alt = distKm - CONSTANTS.EARTH_RADIUS_KM;
+            const velFmt = vel > 0 ? vel.toFixed(2) + " km/s" : "N/A";
+
+            // Determine eclipse state using documented thresholds
+            let eclipseStr = "Sunlit";
+            if (shadow > CONSTANTS.UMBRA_THRESHOLD) eclipseStr = "Umbra";
+            else if (shadow > CONSTANTS.PENUMBRA_MIN_THRESHOLD) eclipseStr = "Penumbra";
+
+            this.ui.tooltip.style.display = 'block';
+            
+            const els = this.ui.tooltipElements;
+            els.name.textContent = safeName;
+            els.layer.textContent = `Layer: ${this.layers[layerKey].label}`;
+            els.id.textContent = `ID: ${idx}`;
+            els.alt.textContent = `Alt: ${alt.toFixed(1)} km`;
+            els.vel.textContent = `Vel: ${velFmt}`;
+            els.light.textContent = `Light: ${eclipseStr}`;
+            els.locked.style.display = isLocked ? 'block' : 'none';
+        }
+
+        /* ========================================================================
+         * ANIMATION LOOP
+         * ======================================================================== */
+
+        /**
+         * Main animation loop - updates physics, raycasting, and renders scene.
+         */
+        animate() {
+            if (this.isDisposed) return;
+            
+            requestAnimationFrame(() => this.animate());
+            
+            try {
+                this.controls.update();
+                this.updatePhysics();
+                this.checkRaycast();
+                this.renderer.render(this.scene, this.camera);
+            } catch (error) {
+                handleError('Animation frame', error);
+            }
+        }
+
+        /**
+         * Checks for satellite hover interactions using raycasting.
+         */
+        checkRaycast() {
+            if (!this.mouseMoved || !this.isInitialized) return;
+            
+            const now = performance.now();
+            if (now - this.lastRaycastUpdate < (1000 / CONSTANTS.RAYCAST_HZ)) return;
+            this.lastRaycastUpdate = now;
+            
+            this.mouseMoved = false;
+
+            try {
+                const objs = this.layerOrder
+                    .map(k => this.layerMeshes[k])
+                    .filter(m => m && m.visible);
+
+                // Also include ISS sprite for raycasting
+                if (this.issSprite && this.issSprite.visible) {
+                    objs.push(this.issSprite);
+                }
+
+                if (objs.length === 0) return;
+
+                this.raycaster.setFromCamera(this.mouse, this.camera);
+                const hits = this.raycaster.intersectObjects(objs);
+
+                if (hits.length > 0) {
+                    const h = hits[0];
+                    
+                    // Handle ISS sprite hits specially
+                    if (h.object.userData.isISS) {
+                        if (!this.hovered || this.hovered.layer !== 'iss' || this.hovered.index !== 0) {
+                            this.hovered = { layer: 'iss', index: 0 };
+                            document.body.style.cursor = 'pointer';
+                            this.ui.tooltip.style.display = 'block';
+                        }
+                    } else {
+                        const layerKey = h.object.userData.layerKey;
+                        const idx = h.index;
+
+                        if (!this.hovered || this.hovered.layer !== layerKey || this.hovered.index !== idx) {
+                            this.hovered = { layer: layerKey, index: idx };
+                            document.body.style.cursor = 'pointer';
+                            this.ui.tooltip.style.display = 'block';
+                        }
+                    }
+                } else if (this.hovered) {
+                    this.hovered = null;
+                    document.body.style.cursor = 'default';
+                    if (!this.selected) {
+                        this.ui.tooltip.style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                handleError('Raycast', error);
+            }
+        }
+
+        /* ========================================================================
+         * CLEANUP / DISPOSAL
+         * ======================================================================== */
+
+        /**
+         * Disposes of all Three.js resources and removes event listeners.
+         * Call this when destroying the tracker instance to prevent memory leaks.
+         */
+        dispose() {
+            this.isDisposed = true;
+
+            // Remove event listeners
+            if (this._boundHandlers.resize) {
+                window.removeEventListener('resize', this._boundHandlers.resize);
+            }
+            if (this._boundHandlers.mouseMove) {
+                window.removeEventListener('mousemove', this._boundHandlers.mouseMove);
+            }
+            if (this._boundHandlers.windowClick) {
+                window.removeEventListener('click', this._boundHandlers.windowClick);
+            }
+            if (this._boundHandlers.keyDown) {
+                window.removeEventListener('keydown', this._boundHandlers.keyDown);
+            }
+            if (this._boundHandlers.online) {
+                window.removeEventListener('online', this._boundHandlers.online);
+            }
+            if (this._boundHandlers.offline) {
+                window.removeEventListener('offline', this._boundHandlers.offline);
+            }
+
+            // Remove UI event listeners
+            if (this._boundHandlers.toggleClick && this.ui.toggleBtn) {
+                this.ui.toggleBtn.removeEventListener('click', this._boundHandlers.toggleClick);
+            }
+            if (this._boundHandlers.searchClick && this.ui.searchResults) {
+                this.ui.searchResults.removeEventListener('click', this._boundHandlers.searchClick);
+            }
+            if (this._boundHandlers.searchInput && this.ui.searchBox) {
+                this.ui.searchBox.removeEventListener('input', this._boundHandlers.searchInput);
+            }
+            if (this._boundHandlers.speedInput && this.ui.speedSlider) {
+                this.ui.speedSlider.removeEventListener('input', this._boundHandlers.speedInput);
+            }
+
+            // Remove layer toggle listeners
+            this.layerOrder.forEach(key => {
+                const handler = this._boundHandlers[`layer_${key}`];
+                const el = this.ui.layers[key];
+                if (handler && el) {
+                    el.removeEventListener('change', handler);
+                }
+            });
+
+            // Dispose Three.js objects
+            Object.values(this.layerMeshes).forEach(mesh => {
+                if (mesh) {
+                    this.scene.remove(mesh);
+                    if (mesh.geometry) mesh.geometry.dispose();
+                    if (mesh.material) mesh.material.dispose();
+                }
+            });
+
+            // Dispose tracked resources
+            this._disposables.forEach(obj => {
+                if (obj && typeof obj.dispose === 'function') {
+                    obj.dispose();
+                }
+            });
+
+            // Dispose ISS sprite
+            if (this.issSprite) {
+                this.scene.remove(this.issSprite);
+                if (this.issSprite.material) this.issSprite.material.dispose();
+            }
+
+            // Dispose renderer
+            if (this.renderer) {
+                this.renderer.dispose();
+                if (this.renderer.domElement && this.renderer.domElement.parentNode) {
+                    this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+                }
+            }
+
+            // Clear references
+            this.layerMeshes = {};
+            this.layerData = {};
+            this.allSatIndex = [];
+            this._boundHandlers = {};
+            this._disposables = [];
+        }
+    }
+
+    /* ============================================================================
+     * APPLICATION ENTRY POINT
+     * ============================================================================ */
+
+    // Global reference for potential external access and cleanup
+    let trackerInstance = null;
+
+    window.addEventListener('load', () => {
+        try {
+            trackerInstance = new StarlinkTracker();
+            
+            // Expose dispose method for cleanup if needed
+            window.disposeTracker = () => {
+                if (trackerInstance) {
+                    trackerInstance.dispose();
+                    trackerInstance = null;
+                }
+            };
+        } catch (error) {
+            handleError('Application startup', error, true);
+        }
+    });
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        if (trackerInstance) {
+            trackerInstance.dispose();
+        }
+    });
+</script>
+</body>
+</html>

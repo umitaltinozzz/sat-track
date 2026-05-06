@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sat-Track - Real-time Satellite Constellation Tracker</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        /* === Dark Theme (default) === */
+        :root {
+            --ui-bg: rgba(10, 15, 25, 0.92);
+            --ui-border: rgba(255, 255, 255, 0.1);
+            --ui-text: rgba(255, 255, 255, 0.92);
+            --ui-subtext: rgba(255, 255, 255, 0.65);
+            --accent: #33aaff;
+            --good: #4caf50;
+            --warn: #ff9800;
+            --bad: #f44336;
+            --ui-item-bg: rgba(255, 255, 255, 0.05);
+            --ui-item-border: rgba(255, 255, 255, 0.06);
+        }
+
+        /* === Light Theme === */
+        body.light-theme {
+            --ui-bg: rgba(245, 245, 250, 0.95);
+            --ui-border: rgba(0, 0, 0, 0.12);
+            --ui-text: rgba(20, 20, 30, 0.92);
+            --ui-subtext: rgba(20, 20, 30, 0.55);
+            --accent: #1a7fd4;
+            --good: #2e7d32;
+            --warn: #e65100;
+            --bad: #c62828;
+            --ui-item-bg: rgba(0, 0, 0, 0.04);
+            --ui-item-border: rgba(0, 0, 0, 0.08);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #000;
+            touch-action: none;
+        }
+
+        canvas { display: block; }
+
+        #ui-container {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 340px;
+            max-height: 85vh;
+            background: var(--ui-bg);
+            border: 1px solid var(--ui-border);
+            border-radius: 16px;
+            padding: 16px;
+            color: var(--ui-text);
+            z-index: 10;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            overflow-y: auto;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        #ui-container.hidden {
+            transform: translateX(-110%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #ui-toggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: var(--ui-bg);
+            border: 1px solid var(--ui-border);
+            color: var(--ui-text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 11;
+            cursor: pointer;
+            font-size: 20px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            transition: transform 0.2s ease;
+        }
+
+        #ui-toggle:hover { transform: scale(1.05); }
+
+        h1 {
+            font-size: 18px;
+            margin: 0 0 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-ok { background: var(--good); }
+        .status-warn { background: var(--warn); }
+        .status-err { background: var(--bad); }
+
+        h2 {
+            font-size: 14px;
+            margin: 16px 0 8px;
+            font-weight: 600;
+            color: var(--ui-subtext);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .stat-item {
+            background: var(--ui-item-bg);
+            border-radius: 12px;
+            padding: 10px;
+            border: 1px solid var(--ui-item-border);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--ui-subtext);
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .control-group { margin-top: 12px; }
+
+        label {
+            display: block;
+            font-size: 12px;
+            color: var(--ui-subtext);
+            margin-bottom: 6px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent);
+        }
+
+        .range-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--ui-subtext);
+            margin-top: 4px;
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 10px;
+            padding: 8px 10px;
+            background: var(--ui-item-bg);
+            border-radius: 12px;
+            border: 1px solid var(--ui-item-border);
+        }
+
+        .toggle-row span {
+            font-size: 12px;
+            color: var(--ui-text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        input[type="checkbox"] {
+            transform: scale(1.1);
+            accent-color: var(--accent);
+        }
+
+        .source-badge {
+            font-size: 8px;
+            padding: 2px 5px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .source-badge.live { background: var(--good); color: #000; }
+        .source-badge.sim { background: var(--warn); color: #000; }
+        .source-badge.cached { background: var(--accent); color: #000; }
+
+        #tooltip {
+            position: fixed;
+            pointer-events: none;
+            padding: 10px 12px;
+            background: rgba(10, 15, 25, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            color: white;
+            font-size: 12px;
+            display: none;
+            z-index: 20;
+            min-width: 180px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .tooltip-header {
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--accent);
+        }
+
+        .tooltip-row { margin: 2px 0; }
+
+        #search-box {
+            width: calc(100% - 22px);
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid var(--ui-border);
+            background: var(--ui-item-bg);
+            color: var(--ui-text);
+            font-size: 12px;
+            outline: none;
+        }
+
+        #search-results {
+            margin-top: 8px;
+            max-height: 160px;
+            overflow-y: auto;
+        }
+
+        .search-item {
+            padding: 8px 10px;
+            border-radius: 10px;
+            margin-bottom: 6px;
+            background: var(--ui-item-bg);
+            border: 1px solid var(--ui-item-border);
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .search-item:hover {
+            background: rgba(51, 170, 255, 0.15);
+            border-color: rgba(51, 170, 255, 0.2);
+        }
+
+        .search-item.keyboard-selected {
+            background: rgba(51, 170, 255, 0.25);
+            border-color: rgba(51, 170, 255, 0.5);
+            outline: none;
+        }
+
+        #search-count {
+            font-size: 10px;
+            color: var(--ui-subtext);
+            margin-bottom: 6px;
+            padding: 0 2px;
+        }
+
+        #loader-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            color: white;
+            flex-direction: column;
+            gap: 12px;
+            font-size: 14px;
+            transition: opacity 0.5s ease;
+        }
+
+        #loader-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .progress-bar {
+            width: 280px;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 999px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--accent);
+            transition: width 0.3s ease;
+        }
+
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            padding: 10px 12px;
+            background: var(--ui-bg);
+            border: 1px solid var(--ui-border);
+            border-radius: 12px;
+            color: var(--ui-subtext);
+            font-size: 12px;
+            z-index: 5;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .legend-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            vertical-align: middle;
+            border: 1px solid var(--ui-border);
+        }
+
+        #offline-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--warn);
+            color: #000;
+            text-align: center;
+            padding: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            z-index: 200;
+            display: none;
+        }
+
+        #error-toast {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(244, 67, 54, 0.95);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            z-index: 300;
+            display: none;
+            max-width: 400px;
+            text-align: center;
+            backdrop-filter: blur(8px);
+        }
+
+        #error-toast.visible {
+            display: block;
+            animation: fadeInOut 4s ease forwards;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+            10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            80% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        /* === Action Buttons === */
+        .btn-group {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .btn-group-label {
+            font-size: 10px;
+            color: var(--ui-subtext);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-top: 10px;
+            margin-bottom: 0;
+        }
+
+        .btn-group-label:first-child {
+            margin-top: 4px;
+        }
+
+        .action-btn {
+            padding: 8px 6px;
+            border-radius: 10px;
+            border: 1px solid var(--ui-border);
+            background: var(--ui-item-bg);
+            color: var(--ui-text);
+            font-size: 11px;
+            cursor: pointer;
+            text-align: center;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .action-btn:hover {
+            background: rgba(51, 170, 255, 0.15);
+            transform: scale(1.02);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .action-btn-icon {
+            display: block;
+            font-size: 16px;
+            margin-bottom: 2px;
+        }
+
+        /* === Collapsible Sections === */
+        .section-heading {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            user-select: none;
+        }
+
+        .section-heading::after {
+            content: '\25B4';
+            font-size: 10px;
+            color: var(--ui-subtext);
+            transition: transform 0.2s ease;
+        }
+
+        .section-heading.collapsed::after {
+            transform: rotate(180deg);
+        }
+
+        .collapsible-content {
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.2s ease;
+            max-height: 1000px;
+            opacity: 1;
+        }
+
+        .collapsible-content.collapsed {
+            max-height: 0;
+            opacity: 0;
+        }
+
+        /* === Pass Prediction (kept for backward compat, hidden) === */
+        #pass-info { display: none; }
+
+        /* === Location Panel === */
+        #location-panel { margin-top: 4px; }
+        #visible-banner {
+            padding: 10px 12px;
+            background: var(--ui-item-bg);
+            border: 1px solid var(--ui-item-border);
+            border-radius: 12px;
+            margin-bottom: 10px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        #visible-scope-btn {
+            font-size: 11px;
+            background: none;
+            border: 1px solid var(--ui-border);
+            border-radius: 6px;
+            color: var(--accent);
+            cursor: pointer;
+            padding: 1px 6px;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+        #selected-pass-panel { margin-top: 10px; }
+        #pass-table-container table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        #pass-table-container th {
+            color: var(--ui-subtext); font-weight: 600; text-align: left;
+            padding: 4px 6px; border-bottom: 1px solid var(--ui-item-border);
+            font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px;
+        }
+        #pass-table-container td { padding: 5px 6px; border-bottom: 1px solid var(--ui-item-border); color: var(--ui-text); }
+        #pass-table-container tr:last-child td { border-bottom: none; }
+        #pass-table-container tr:hover td { background: var(--ui-item-bg); }
+
+        /* === Manual Location Form === */
+        #manual-location-form input[type="number"],
+        #manual-location-form input[type="text"] {
+            width: 100%; box-sizing: border-box;
+            padding: 7px 8px; border-radius: 8px;
+            border: 1px solid var(--ui-border);
+            background: var(--ui-item-bg); color: var(--ui-text);
+            font-size: 11px; margin-top: 4px;
+        }
+        #btn-manual-toggle {
+            font-size: 11px; color: var(--accent);
+            background: none; border: none; cursor: pointer;
+            margin-top: 4px; padding: 0;
+        }
+
+        /* === Active action button === */
+        .action-btn.active {
+            background: rgba(51, 170, 255, 0.2);
+            border-color: rgba(51, 170, 255, 0.4);
+        }
+
+        /* === Keyboard Overlay === */
+        #keyboard-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 150;
+        }
+
+        #keyboard-overlay.visible {
+            display: flex;
+        }
+
+        .keyboard-content {
+            background: var(--ui-bg);
+            border: 1px solid var(--ui-border);
+            border-radius: 16px;
+            padding: 24px;
+            color: var(--ui-text);
+            min-width: 320px;
+            max-width: 400px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .keyboard-content h2 {
+            margin-top: 0;
+            color: var(--ui-text);
+        }
+
+        .shortcut-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--ui-item-border);
+            font-size: 13px;
+        }
+
+        .shortcut-row:last-child { border-bottom: none; }
+
+        .shortcut-key {
+            background: var(--ui-item-bg);
+            border: 1px solid var(--ui-border);
+            border-radius: 6px;
+            padding: 3px 10px;
+            font-family: monospace;
+            font-size: 13px;
+            font-weight: 600;
+            min-width: 30px;
+            text-align: center;
+        }
+
+        .keyboard-close {
+            display: block;
+            margin-top: 16px;
+            padding: 8px 16px;
+            border-radius: 10px;
+            border: 1px solid var(--ui-border);
+            background: var(--ui-item-bg);
+            color: var(--ui-text);
+            cursor: pointer;
+            font-size: 12px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .keyboard-close:hover {
+            background: rgba(51, 170, 255, 0.15);
+        }
+
+        /* === Light theme overrides for hardcoded elements === */
+        body.light-theme #tooltip {
+            background: rgba(245, 245, 250, 0.95);
+            border-color: rgba(0, 0, 0, 0.12);
+            color: var(--ui-text);
+        }
+        body.light-theme #keyboard-overlay {
+            background: rgba(255, 255, 255, 0.85);
+        }
+        body.light-theme .source-badge { color: #fff; }
+        body.light-theme .source-badge.cached { color: #fff; }
+
+        @media (max-width: 768px) {
+            #ui-container {
+                width: calc(100% - 40px);
+                max-height: 70vh;
+                top: 70px;
+            }
+            #controls {
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                text-align: center;
+            }
+        }
+        /* === Map Modal === */
+        #map-modal {
+            position: fixed; inset: 0; z-index: 10000;
+            background: rgba(0,0,0,0.7);
+            display: flex; align-items: center; justify-content: center;
+        }
+        #map-modal-content {
+            background: var(--ui-bg); border: 1px solid var(--ui-border);
+            border-radius: 16px; width: 90vw; max-width: 700px;
+            max-height: 90vh; display: flex; flex-direction: column;
+            overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+        #map-modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 14px 18px; border-bottom: 1px solid var(--ui-border);
+        }
+        #map-modal-header h3 { margin: 0; font-size: 15px; color: var(--ui-text); }
+        #map-modal-close {
+            background: none; border: none; color: var(--ui-subtext);
+            font-size: 22px; cursor: pointer; padding: 0 4px; line-height: 1;
+        }
+        #map-modal-close:hover { color: var(--ui-text); }
+        #leaflet-map { flex: 1; min-height: 350px; }
+        #map-modal-coords {
+            padding: 10px 18px; font-size: 13px; color: var(--ui-subtext);
+            border-top: 1px solid var(--ui-border); text-align: center;
+        }
+        #map-modal-actions {
+            display: flex; gap: 10px; padding: 12px 18px;
+            border-top: 1px solid var(--ui-border);
+        }
+        #map-modal-confirm, #map-modal-cancel {
+            flex: 1; padding: 10px; border-radius: 10px; border: none;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+        }
+        #map-modal-confirm {
+            background: var(--accent); color: #fff;
+        }
+        #map-modal-confirm:disabled {
+            background: var(--ui-item-bg); color: var(--ui-subtext); cursor: default;
+        }
+        #map-modal-cancel {
+            background: var(--ui-item-bg); color: var(--ui-text);
+            border: 1px solid var(--ui-border);
+        }
+        #map-modal-cancel:hover { background: rgba(255,255,255,0.1); }
+        @media (max-width: 600px) {
+            #map-modal-content { width: 95vw; max-height: 95vh; border-radius: 12px; }
+            #leaflet-map { min-height: 250px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="offline-banner" role="alert">Offline - Using cached/simulated data</div>
+
+<div id="loader-overlay" aria-live="polite">
+    <div id="loader-text">Loading orbital data...</div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+</div>
+
+<button id="ui-toggle" aria-label="Toggle UI panel">&#10005;</button>
+
+<div id="ui-container">
+    <h1>
+        <span class="status-indicator status-warn" id="status-dot"></span>
+        Sat-Track
+    </h1>
+
+    <div style="font-size:12px; color: var(--ui-subtext); margin-bottom: 10px;">
+        <span id="status-text">Initialising...</span>
+    </div>
+
+    <h2>Live Stats</h2>
+    <div class="stat-grid">
+        <div class="stat-item">
+            <div class="stat-label">UTC Time</div>
+            <div class="stat-value" id="utcTime">--:--:--</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Active Objects</div>
+            <div class="stat-value" id="satCount">0</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Sunlit</div>
+            <div class="stat-value" id="litCount">0</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Eclipsed</div>
+            <div class="stat-value" id="darkCount">0</div>
+        </div>
+        <div class="stat-item" style="grid-column: 1 / -1;">
+            <div class="stat-label">Local Time &mdash; <span id="localTzLabel" style="font-weight:normal;opacity:0.7;">...</span></div>
+            <div class="stat-value" id="localTime">--:--:--</div>
+        </div>
+    </div>
+
+    <h2 class="section-heading" id="heading-simulation">Simulation</h2>
+    <div class="collapsible-content" id="content-simulation">
+        <div class="control-group">
+            <label for="growthSlider">Constellation Density</label>
+            <input type="range" id="growthSlider" min="1" max="100" value="100">
+            <div class="range-info"><span>Low</span><span>Full</span></div>
+        </div>
+
+        <div class="control-group">
+            <label for="timeSpeed">Time Speed (x<span id="speedDisplay">1</span>)</label>
+            <input type="range" id="timeSpeed" min="1" max="200" value="1">
+            <div class="range-info"><span>Real</span><span>Fast</span></div>
+        </div>
+
+        <div class="control-group" style="display:flex; gap:8px; margin-top:2px;">
+            <button class="action-btn" id="btn-reset-time" aria-label="Reset simulation to current real time" style="flex:1; font-size:11px;">
+                <span class="action-btn-icon" aria-hidden="true">&#8635;</span>
+                Reset to Now
+            </button>
+        </div>
+
+        <div class="control-group">
+            <label for="pixelSizeSlider">Satellite Size (<span id="pixelSizeDisplay">2</span> px)</label>
+            <input type="range" id="pixelSizeSlider" min="1" max="8" step="0.5" value="2">
+            <div class="range-info"><span>Small</span><span>Large</span></div>
+        </div>
+    </div>
+
+    <h2>Search</h2>
+    <div class="control-group">
+        <input type="text" id="search-box" placeholder="Search satellites by name...">
+        <div id="search-count"></div>
+        <div id="search-results"></div>
+    </div>
+    <!-- Legacy pass-info kept for backward compat (hidden by CSS) -->
+    <div id="pass-info"></div>
+
+    <!-- My Location panel — hidden until observer location is set -->
+    <div id="location-panel" style="display:none;">
+        <h2>My Location</h2>
+
+        <div id="visible-banner">
+            <span id="visible-count-text" style="color:var(--good);">-- satellites visible now</span>
+            <button id="btn-visible-scope" title="Switch scope">Starlink &#9660;</button>
+        </div>
+
+        <div class="control-group">
+            <label for="min-el-slider">Min elevation: <span id="min-el-display">10</span>&deg;</label>
+            <input type="range" id="min-el-slider" min="0" max="90" value="10">
+            <div class="range-info"><span>0&deg; (horizon)</span><span>90&deg; (zenith)</span></div>
+            <div style="font-size:11px; color:var(--ui-subtext); margin-top:5px; line-height:1.4;">
+                Minimum angle above the horizon a satellite must reach to count as a pass.
+                10&deg; is a practical default — trees and buildings typically block lower angles.
+                Raise it to filter for higher, brighter passes only.
+            </div>
+        </div>
+
+        <div class="toggle-row" style="margin-top:8px;">
+            <label for="toggle-vis-highlight">Highlight visible sats</label>
+            <input type="checkbox" id="toggle-vis-highlight">
+        </div>
+
+        <div id="selected-pass-panel" style="display:none;">
+            <div style="font-size:11px; color:var(--ui-subtext); margin-bottom:6px; font-weight:600;
+                        text-transform:uppercase; letter-spacing:0.5px;">
+                Upcoming Passes
+            </div>
+            <div id="pass-table-container"></div>
+        </div>
+    </div>
+
+    <h2 class="section-heading" id="heading-layers">Layers</h2>
+    <div class="collapsible-content" id="content-layers">
+        <div class="toggle-row">
+            <span>
+                <span class="legend-dot" style="background:#ffffff"></span>
+                Starlink
+                <span class="source-badge sim" id="badge-starlink">--</span>
+            </span>
+            <input type="checkbox" id="layer-starlink" checked>
+        </div>
+        <div class="toggle-row">
+            <span>
+                <span class="legend-dot" style="background:#ffd166"></span>
+                ISS
+                <span class="source-badge sim" id="badge-iss">--</span>
+            </span>
+            <input type="checkbox" id="layer-iss" checked>
+        </div>
+        <div class="toggle-row">
+            <span>
+                <span class="legend-dot" style="background:#06d6a0"></span>
+                GPS
+                <span class="source-badge sim" id="badge-gps">--</span>
+            </span>
+            <input type="checkbox" id="layer-gps" checked>
+        </div>
+        <div class="toggle-row">
+            <span>
+                <span class="legend-dot" style="background:#8d99ae"></span>
+                Galileo
+                <span class="source-badge sim" id="badge-galileo">--</span>
+            </span>
+            <input type="checkbox" id="layer-galileo" checked>
+        </div>
+        <div class="toggle-row">
+            <span>
+                <span class="legend-dot" style="background:#ef476f"></span>
+                OneWeb
+                <span class="source-badge sim" id="badge-oneweb">--</span>
+            </span>
+            <input type="checkbox" id="layer-oneweb" checked>
+        </div>
+        <div class="toggle-row">
+            <span>
+                <span class="legend-dot" style="background:#9966ff"></span>
+                Iridium
+                <span class="source-badge sim" id="badge-iridium">--</span>
+            </span>
+            <input type="checkbox" id="layer-iridium" checked>
+        </div>
+        <div class="toggle-row">
+            <span>
+                <span class="legend-dot" style="background:#ff8033"></span>
+                GLONASS
+                <span class="source-badge sim" id="badge-glonass">--</span>
+            </span>
+            <input type="checkbox" id="layer-glonass" checked>
+        </div>
+        <div class="toggle-row">
+            <span>
+                <span class="legend-dot" style="background:#e6d933"></span>
+                BeiDou
+                <span class="source-badge sim" id="badge-beidou">--</span>
+            </span>
+            <input type="checkbox" id="layer-beidou" checked>
+        </div>
+
+        <div class="toggle-row">
+            <span>Show Orbit Trajectory</span>
+            <input type="checkbox" id="toggle-orbit">
+        </div>
+    </div>
+
+    <h2>Tools</h2>
+    <div class="btn-group-label">Camera</div>
+    <div class="btn-group">
+        <button class="action-btn active" id="btn-auto-rotate" aria-label="Toggle auto-rotation">
+            <span class="action-btn-icon" aria-hidden="true">&#8635;</span>
+            Rotate
+        </button>
+        <button class="action-btn" id="btn-focus" aria-label="Focus camera on selected satellite">
+            <span class="action-btn-icon" aria-hidden="true">&#9678;</span>
+            Focus
+        </button>
+        <button class="action-btn" id="btn-follow" aria-label="Toggle follow-camera mode">
+            <span class="action-btn-icon" aria-hidden="true">&#10148;</span>
+            Follow
+        </button>
+        <button class="action-btn" id="btn-reset-camera" aria-label="Reset camera to default view">
+            <span class="action-btn-icon" aria-hidden="true">&#8634;</span>
+            Reset
+        </button>
+    </div>
+    <div class="btn-group-label">View</div>
+    <div class="btn-group">
+        <button class="action-btn" id="btn-theme" aria-label="Toggle light/dark theme">
+            <span class="action-btn-icon" aria-hidden="true">&#9681;</span>
+            Theme
+        </button>
+        <button class="action-btn active" id="btn-labels" aria-label="Toggle satellite labels">
+            <span class="action-btn-icon" aria-hidden="true">&#9649;</span>
+            Labels
+        </button>
+        <button class="action-btn" id="btn-location" aria-label="Set observer location">
+            <span class="action-btn-icon" aria-hidden="true">&#128205;</span>
+            Location
+        </button>
+        <button class="action-btn" id="btn-keyboard" aria-label="Show keyboard shortcuts">
+            <span class="action-btn-icon" aria-hidden="true">&#9000;</span>
+            Keys
+        </button>
+    </div>
+    <div class="btn-group-label">Actions</div>
+    <div class="btn-group">
+        <button class="action-btn" id="btn-export" aria-label="Export screenshot">
+            <span class="action-btn-icon" aria-hidden="true">&#128247;</span>
+            Export
+        </button>
+        <button class="action-btn" id="btn-share" aria-label="Copy shareable link to clipboard">
+            <span class="action-btn-icon" aria-hidden="true">&#128279;</span>
+            Share
+        </button>
+        <button class="action-btn" id="btn-refresh" aria-label="Refresh satellite data">
+            <span class="action-btn-icon" aria-hidden="true">&#128260;</span>
+            Refresh
+        </button>
+    </div>
+    <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--ui-item-border);">
+    <button id="btn-manual-toggle" aria-label="Enter location manually">Enter coordinates manually</button>
+    <div id="manual-location-form" style="display:none; margin-top:8px;">
+        <input type="text" id="input-dms"
+               placeholder="Paste DMS e.g. 32°03′17.22″S 115°52′28.60″E">
+        <input type="number" id="input-lat" placeholder="Latitude (-90 to 90)"
+               step="0.0001" min="-90" max="90">
+        <input type="number" id="input-lon" placeholder="Longitude (-180 to 180)"
+               step="0.0001" min="-180" max="180">
+        <button class="action-btn" id="btn-manual-location"
+                style="width:100%; margin-top:6px;" aria-label="Set manual location">
+            <span class="action-btn-icon" aria-hidden="true">&#10003;</span>
+            Set Location
+        </button>
+    </div>
+    </div>
+</div>
+
+<div id="tooltip" role="tooltip">
+    <div class="tooltip-header" id="tooltip-name">--</div>
+    <div class="tooltip-row" id="tooltip-layer">Layer: --</div>
+    <div class="tooltip-row" id="tooltip-id">ID: --</div>
+    <div class="tooltip-row" id="tooltip-alt">Alt: --</div>
+    <div class="tooltip-row" id="tooltip-vel">Vel: --</div>
+    <div class="tooltip-row" id="tooltip-light">Light: --</div>
+    <div class="tooltip-row" id="tooltip-locked" style="color:#0f0; font-size:0.7em; margin-top:4px; display:none;">TARGET LOCKED</div>
+</div>
+
+<div id="pause-indicator" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.7); color:#fff; padding:12px 24px; border-radius:12px; font-size:18px; font-weight:600; pointer-events:none; z-index:200; letter-spacing:0.05em;">⏸ PAUSED</div>
+
+<div id="controls">
+    Drag: Rotate | Scroll: Zoom | Click: Select | <strong>?</strong>: All shortcuts
+</div>
+
+<div id="error-toast" role="alert" aria-live="assertive"></div>
+
+<!-- Keyboard Shortcuts Overlay -->
+<div id="keyboard-overlay" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+    <div class="keyboard-content">
+        <h2>Keyboard Shortcuts</h2>
+        <div class="shortcut-row">
+            <span>Toggle UI panel</span>
+            <span class="shortcut-key">H</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Show shortcuts</span>
+            <span class="shortcut-key">?</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Toggle theme</span>
+            <span class="shortcut-key">T</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Export screenshot</span>
+            <span class="shortcut-key">E</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Set ground station</span>
+            <span class="shortcut-key">G</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Pause / Resume time</span>
+            <span class="shortcut-key">P</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Reset time to now</span>
+            <span class="shortcut-key">N</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Reset camera view</span>
+            <span class="shortcut-key">R</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Cycle constellation</span>
+            <span class="shortcut-key">C</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Toggle auto-rotation</span>
+            <span class="shortcut-key">A</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Focus on satellite</span>
+            <span class="shortcut-key">F</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Toggle labels</span>
+            <span class="shortcut-key">L</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Deselect / Close</span>
+            <span class="shortcut-key">Esc</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Click satellite</span>
+            <span>Select &amp; lock</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Scroll / Pinch</span>
+            <span>Zoom in/out</span>
+        </div>
+        <button class="keyboard-close" id="keyboard-overlay-close">Close</button>
+    </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.172.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.172.0/examples/jsm/",
+    "satellite.js": "https://unpkg.com/satellite.js@4.1.4/dist/satellite.es.js"
+  }
+}
+</script>
+<script type="module" src="src/main.js"></script>
+
+<!-- Location Map Picker Modal -->
+<div id="map-modal" style="display:none;">
+    <div id="map-modal-content">
+        <div id="map-modal-header">
+            <h3>Set Your Location</h3>
+            <button id="map-modal-close" aria-label="Close">&times;</button>
+        </div>
+        <div id="leaflet-map"></div>
+        <div id="map-modal-coords">Click the map to set your location</div>
+        <div id="map-modal-actions">
+            <button id="map-modal-confirm" disabled>Confirm Location</button>
+            <button id="map-modal-cancel">Cancel</button>
+        </div>
+    </div>
+</div>
+</body>
+</html>
