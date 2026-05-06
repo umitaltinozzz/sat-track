@@ -13,7 +13,12 @@
 
 import * as satellite from 'satellite.js';
 import { CONSTANTS } from '../constants.js';
-import { computeShadowFactorKm, calculateSunDirection, SimulatedOrbit, calculateElevation } from '../core.js';
+import {
+    computeShadowFactorKm,
+    calculateSunDirection,
+    SimulatedOrbit,
+    calculateElevation
+} from '../core.js';
 
 // Worker-side layer storage: { [key]: { satData: [], satNames: [], color: {r,g,b} } }
 let workerLayers = {};
@@ -70,8 +75,16 @@ function handleInit(msg) {
 // ============================================================================
 
 function handleUpdate(msg) {
-    const { simDateMs, selected, hovered, layerActive, starlinkActiveCount,
-            observer, highlightVisible, minElevation } = msg;
+    const {
+        simDateMs,
+        selected,
+        hovered,
+        layerActive,
+        starlinkActiveCount,
+        observer,
+        highlightVisible,
+        minElevation
+    } = msg;
 
     const simDate = new Date(simDateMs);
     const gmst = satellite.gstime(simDate);

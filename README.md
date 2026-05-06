@@ -38,15 +38,15 @@ The app is designed for exploring large satellite constellations such as Starlin
 
 ## Tech Stack
 
-| Area | Technology |
-| --- | --- |
-| 3D rendering | Three.js |
-| Orbit propagation | satellite.js |
-| Build tool | Vite |
-| Language | Vanilla JavaScript ES modules |
-| Testing | Jest |
-| Quality | ESLint, Prettier |
-| Deployment | GitHub Pages workflow |
+| Area              | Technology                    |
+| ----------------- | ----------------------------- |
+| 3D rendering      | Three.js                      |
+| Orbit propagation | satellite.js                  |
+| Build tool        | Vite                          |
+| Language          | Vanilla JavaScript ES modules |
+| Testing           | Jest                          |
+| Quality           | ESLint, Prettier              |
+| Deployment        | GitHub Pages workflow         |
 
 ## Getting Started
 
@@ -80,29 +80,29 @@ npm run preview
 
 ## Available Scripts
 
-| Command | Description |
-| --- | --- |
-| `npm run dev` | Start the Vite development server |
-| `npm run build` | Build the app for production |
-| `npm run preview` | Preview the production build locally |
-| `npm test` | Run Jest tests |
-| `npm run lint` | Run ESLint on source and test files |
-| `npm run lint:fix` | Automatically fix ESLint issues where possible |
-| `npm run format` | Format source, tests, JSON, and Markdown with Prettier |
-| `npm run format:check` | Check formatting without writing changes |
+| Command                | Description                                            |
+| ---------------------- | ------------------------------------------------------ |
+| `npm run dev`          | Start the Vite development server                      |
+| `npm run build`        | Build the app for production                           |
+| `npm run preview`      | Preview the production build locally                   |
+| `npm test`             | Run Jest tests                                         |
+| `npm run lint`         | Run ESLint on source and test files                    |
+| `npm run lint:fix`     | Automatically fix ESLint issues where possible         |
+| `npm run format`       | Format source, tests, JSON, and Markdown with Prettier |
+| `npm run format:check` | Check formatting without writing changes               |
 
 ## Controls
 
-| Input | Action |
-| --- | --- |
-| Drag | Rotate the globe |
-| Scroll / pinch | Zoom in or out |
-| Left click | Select and follow a satellite |
-| `H` | Toggle the UI panel |
-| `Space` / `P` | Pause or resume simulation time |
-| `N` | Sync simulation time to now |
-| `R` | Reset the camera |
-| `Esc` | Clear the current selection |
+| Input          | Action                          |
+| -------------- | ------------------------------- |
+| Drag           | Rotate the globe                |
+| Scroll / pinch | Zoom in or out                  |
+| Left click     | Select and follow a satellite   |
+| `H`            | Toggle the UI panel             |
+| `Space` / `P`  | Pause or resume simulation time |
+| `N`            | Sync simulation time to now     |
+| `R`            | Reset the camera                |
+| `Esc`          | Clear the current selection     |
 
 ## Project Structure
 

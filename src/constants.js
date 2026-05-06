@@ -73,8 +73,8 @@ export const CONSTANTS = {
     ECLIPSE_DIM_FACTOR: 0.5,
 
     // === Visibility Highlight ===
-    VIS_HIGHLIGHT_COLOR: { r: 0.2, g: 1.0, b: 0.2 },  // vivid green for visible sats
-    VIS_DIM_FACTOR: 0.5,                                // dim non-visible sats to 50% brightness
+    VIS_HIGHLIGHT_COLOR: { r: 0.2, g: 1.0, b: 0.2 }, // vivid green for visible sats
+    VIS_DIM_FACTOR: 0.5, // dim non-visible sats to 50% brightness
 
     // === Mobile Performance ===
     MOBILE_STAR_COUNT: 800,

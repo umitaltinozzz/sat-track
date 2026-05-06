@@ -506,8 +506,14 @@ export class StarlinkTracker {
         this._maxAniso = this.renderer.capabilities.getMaxAnisotropy();
 
         const initialUniforms = {
-            dayTexture: { value: loader.load(this.config.urls.earthDay, (tex) => this._configureTexture(tex)) },
-            nightTexture: { value: loader.load(this.config.urls.earthNight, (tex) => this._configureTexture(tex)) },
+            dayTexture: {
+                value: loader.load(this.config.urls.earthDay, (tex) => this._configureTexture(tex))
+            },
+            nightTexture: {
+                value: loader.load(this.config.urls.earthNight, (tex) =>
+                    this._configureTexture(tex)
+                )
+            },
             sunDirection: { value: new THREE.Vector3(1, 0, 0) }
         };
 
@@ -623,9 +629,15 @@ export class StarlinkTracker {
         this._earthLodLastCheck = now;
 
         const shouldBeHigh = camDist < CONSTANTS.EARTH_LOD_THRESHOLD;
-        const shouldBeLow = camDist > CONSTANTS.EARTH_LOD_THRESHOLD + CONSTANTS.EARTH_LOD_HYSTERESIS;
+        const shouldBeLow =
+            camDist > CONSTANTS.EARTH_LOD_THRESHOLD + CONSTANTS.EARTH_LOD_HYSTERESIS;
 
-        if (shouldBeHigh && !this._earthLodHigh && !this._earthLodLoading && !this._earthLodFailed) {
+        if (
+            shouldBeHigh &&
+            !this._earthLodHigh &&
+            !this._earthLodLoading &&
+            !this._earthLodFailed
+        ) {
             this._earthLodLoading = true;
             const loader = this._texLoader;
 
@@ -634,7 +646,10 @@ export class StarlinkTracker {
             });
 
             const timeout = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('LOD texture load timeout')), CONSTANTS.EARTH_LOD_LOAD_TIMEOUT_MS)
+                setTimeout(
+                    () => reject(new Error('LOD texture load timeout')),
+                    CONSTANTS.EARTH_LOD_LOAD_TIMEOUT_MS
+                )
             );
 
             Promise.race([loadPromise, timeout])
@@ -646,13 +661,20 @@ export class StarlinkTracker {
                     this._configureTexture(dayHi);
                     this._earthLodCache = dayHi;
                     const currentDist = this.camera.position.length();
-                    if (currentDist < CONSTANTS.EARTH_LOD_THRESHOLD + CONSTANTS.EARTH_LOD_HYSTERESIS) {
+                    if (
+                        currentDist <
+                        CONSTANTS.EARTH_LOD_THRESHOLD + CONSTANTS.EARTH_LOD_HYSTERESIS
+                    ) {
                         this.earthMat.uniforms.dayTexture.value = dayHi;
                         this._earthLodHigh = true;
                     }
                 })
-                .catch(() => { this._earthLodFailed = true; })
-                .finally(() => { this._earthLodLoading = false; });
+                .catch(() => {
+                    this._earthLodFailed = true;
+                })
+                .finally(() => {
+                    this._earthLodLoading = false;
+                });
         } else if (shouldBeLow && this._earthLodHigh) {
             this.earthMat.uniforms.dayTexture.value = this._earthLodDefaultDay;
             this._earthLodHigh = false;
@@ -2523,7 +2545,9 @@ export class StarlinkTracker {
                         map.setView([position.coords.latitude, position.coords.longitude], 6);
                     }
                 },
-                () => { /* ignore errors */ },
+                () => {
+                    /* ignore errors */
+                },
                 { enableHighAccuracy: false, timeout: 5000 }
             );
         }
@@ -2564,9 +2588,22 @@ export class StarlinkTracker {
             closeModal();
             cleanup();
         };
-        const onCancel = () => { closeModal(); cleanup(); };
-        const onKeyDown = (e) => { if (e.key === 'Escape') { closeModal(); cleanup(); } };
-        const onBackdrop = (e) => { if (e.target === modal) { closeModal(); cleanup(); } };
+        const onCancel = () => {
+            closeModal();
+            cleanup();
+        };
+        const onKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                cleanup();
+            }
+        };
+        const onBackdrop = (e) => {
+            if (e.target === modal) {
+                closeModal();
+                cleanup();
+            }
+        };
 
         const cleanup = () => {
             confirmBtn.removeEventListener('click', onConfirm);
@@ -2675,7 +2712,6 @@ export class StarlinkTracker {
             this.ui.manualLocationForm.style.display = '';
         }
     }
-
 
     /**
      * Creates a 3D marker for the ground station on Earth's surface.
