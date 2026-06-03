@@ -150,34 +150,8 @@ The repository includes GitHub Actions workflows for:
 - Running Jest tests on Node.js 18 and 20
 - Building and deploying the Vite output to GitHub Pages
 
-After pushing to GitHub, enable GitHub Pages with the included workflow to publish the `dist` build.
 
-## Repository Name
 
-Recommended GitHub repository name:
 
-```text
-sat-track
-```
-
-Alternative SEO-friendly name:
-
-```text
-satellite-orbit-tracker
-```
-
-Recommended repository description:
-
-```text
-Real-time 3D satellite constellation tracker built with Three.js, satellite.js, and Vite.
-```
-
-Recommended topics:
-
-```text
-satellite-tracking, threejs, satellite-js, vite, orbit-propagation, tle, celestrak, starlink, iss, webgl, javascript
-```
-
-## License
 
 This project is released under the MIT License.
